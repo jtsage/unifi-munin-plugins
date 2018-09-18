@@ -64,7 +64,7 @@ if(isset($argv[1])) {
 	if($argv[1] == "config") {
 	    echo "graph_title Client Detail Connected\n";
     	echo "graph_vlabel clients\n";
-		echo "graph_catergory unifi\n";
+		echo "graph_category unifi\n";
 		echo "graph_info Detailed clients connected to device - wireless and wired\n";
         if ( isset($_ENV['unifi_userdetail_graphorder']) ) {
             echo "graph_order " . $_ENV['unifi_userdetail_graphorder'] . "\n";

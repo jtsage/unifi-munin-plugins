@@ -45,7 +45,7 @@ if(isset($argv[1])) {
 	if($argv[1] == "config") {
 	    echo "graph_title Memory Usage\n";
     	echo "graph_vlabel %\n";
-		echo "graph_catergory unifi\n";
+		echo "graph_category unifi\n";
 		echo "graph_args --base 1000 -r --lower-limit 0 --upper-limit 100\n";
 		echo "graph_info Memory Usage on unifi Devices\n";
 		foreach ( $results as $device ) {
