@@ -13,6 +13,8 @@
 #  env.unifi_ver 5.8.28 (Controller software version)
 #  env.unifi_ssl false (true == Fail on bad SSL certificate)
 #
+#  env.unifi_userdetail_graphorder order of graphs, optional
+#
 # Required pre-requisite:
 #
 #  https://github.com/Art-of-WiFi/UniFi-API-client
@@ -64,6 +66,9 @@ if(isset($argv[1])) {
     	echo "graph_vlabel clients\n";
 		echo "graph_catergory unifi\n";
 		echo "graph_info Detailed clients connected to device - wireless and wired\n";
+        if ( isset($_ENV['unifi_userdetail_graphorder']) ) {
+            echo "graph_order " . $_ENV['unifi_userdetail_graphorder'] . "\n";
+        }
 		foreach ( $networks as $key => $net ) {
 			echo $key . ".label " . $net['name'] . "\n";
 		}

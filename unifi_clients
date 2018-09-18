@@ -11,6 +11,8 @@
 #  env.unifi_site Site_Name (often "default" for home use)
 #  env.unifi_ver 5.8.28 (Controller software version)
 #  env.unifi_ssl false (true == Fail on bad SSL certificate)
+###
+#  env.unifi_clients_graphorder order of graphs, optional
 #
 # Required pre-requisite:
 #
@@ -47,6 +49,9 @@ if(isset($argv[1])) {
     	echo "graph_vlabel clients\n";
 		echo "graph_catergory unifi\n";
 		echo "graph_info Raw clients connected to device - wireless and wired\n";
+		if ( isset($_ENV['unifi_clients_graphorder']) ) {
+			echo "graph_order " . $_ENV['unifi_clients_graphorder'] . "\n";
+		}
 		foreach ( $results as $device ) {
 			echo make_safe($device->name) . ".label " . $device->name . "\n";
 		}
