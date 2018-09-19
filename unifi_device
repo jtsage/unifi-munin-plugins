@@ -49,7 +49,7 @@ if(isset($argv[1])) {
 	    echo "graph_title Transfer per device (5 min avg)\n";
     	echo "graph_vlabel Bytes/\${graph_period} rcvd (-) / trans (+)\n";
 		echo "graph_category unifi\n";
-		echo "graph_args --base 1024\n";
+		echo "graph_args --base 1000\n";
 		echo "graph_info Bytes transfered per UniFi device\n";
 		$buffer = array();
 		foreach ( $results as $device ) {
@@ -70,7 +70,7 @@ if(isset($argv[1])) {
 			$buffer[] = "graph_title Transfer for {$device->name} (5 min avg)";
     		$buffer[] = "graph_vlabel Bytes/\${graph_period} rcvd (-) / trans (+)";
 			$buffer[] = "graph_category unifi";
-			$buffer[] = "graph_args --base 1024";
+			$buffer[] = "graph_args --base 1000";
 			$buffer[] = "graph_info Bytes transfered for UniFi device: {$device->name}";
 			$buffer[] = "rxbytes.label invisible";
 			$buffer[] = "rxbytes.type DERIVE";
