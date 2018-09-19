@@ -1,0 +1,112 @@
+#!/usr/bin/php
+<?php
+# Unifi Plugin:: Number of clients connected
+#
+# Required config:
+#
+#  [unifi_*]
+#  env.unifi_user Controller_Username
+#  env.unifi_pass Controller_Password
+#  env.unifi_host https://unifi.fqdn.com:8443
+#  env.unifi_site Site_Name (often "default" for home use)
+#  env.unifi_ver 5.8.28 (Controller software version)
+#  env.unifi_ssl false (true == Fail on bad SSL certificate)
+###
+#  env.unifi_clients_graphorder order of graphs, optional
+#
+# Required pre-requisite:
+#
+#  https://github.com/Art-of-WiFi/UniFi-API-client 
+#
+# I put in in my PHP search path, under unifi (on ubuntu, that'd be /usr/share/php/unifi/Client.php)
+#
+# I'm not positive how that package is versioned - I downloaded 9-17-2018 (SHA:2c03587)
+
+
+require_once('unifi/Client.php');
+
+function make_safe($name) {
+	return strtolower(preg_replace("/[^a-zA-Z0-9]+/", "_", $name));
+}
+function zPad($num) {
+	if ( $num < 10 ) { return "0" . $num; }
+	else { return $num; }
+}
+
+$unifi_connection = new UniFi_API\Client(
+    $_ENV['unifi_user'],
+    $_ENV['unifi_pass'],
+    $_ENV['unifi_host'],
+    $_ENV['unifi_site'],
+    $_ENV['unifi_ver'],
+    $_ENV['unifi_ssl']
+);
+
+$login            = $unifi_connection->login();
+$results          = $unifi_connection->list_devices(); // returns a PHP array containing alarm objects
+$buffer = array();
+
+if(isset($argv[1])) {
+	if($argv[1] == "config") {
+		foreach ( $results as $switch ) {
+			if ( $switch->type == "usw" ) {
+				$devName = make_safe($switch->name);
+				echo "multigraph unifi_switch_ports_{$devName}\n";
+				echo "graph_title Transfer per port ({$switch->name})\n";
+    			echo "graph_vlabel Bytes/\${graph_period} rcvd (-) / trans (+)\n";
+				echo "graph_category unifi\n";
+				echo "graph_args --base 1000\n";
+				echo "graph_info Bytes transfered per switch port\n";
+				foreach ( $switch->port_table as $port ) {
+					$portName = "port_" . zPad($port->port_idx);
+					$portLbl = zPad($port->port_idx) . ":" . $port->name;
+					echo "{$portName}_rxbyte.label {$portLbl}\n";
+					echo "{$portName}_rxbyte.type DERIVE\n";
+					echo "{$portName}_rxbyte.min 0\n";
+					echo "{$portName}_rxbyte.graph no\n";
+					echo "{$portName}_txbyte.label {$portLbl}\n";
+					echo "{$portName}_txbyte.type DERIVE\n";
+					echo "{$portName}_txbyte.min 0\n";
+					echo "{$portName}_txbyte.negative {$portName}_rxbyte\n";
+					$buffer[] = "";
+
+					$buffer[] = "multigraph unifi_switch_ports_{$devName}.{$portName}";
+					$buffer[] = "graph_title Transfer for port {$devName}:{$portLbl}";
+    				$buffer[] = "graph_vlabel Bytes/\${graph_period} rcvd (-) / trans (+)";
+					$buffer[] = "graph_category unifi";
+					$buffer[] = "graph_args --base 1000";
+					$buffer[] = "graph_info Port Statistics for UniFi device: {$switch->name}, Port: {$portLbl}";
+					$buffer[] = "rxbytes.label invisible";
+					$buffer[] = "rxbytes.type DERIVE";
+					$buffer[] = "rxbytes.min 0";
+					$buffer[] = "rxbytes.graph no";
+					$buffer[] = "txbytes.label Bytes";
+					$buffer[] = "txbytes.type DERIVE";
+					$buffer[] = "txbytes.min 0";
+					$buffer[] = "txbytes.negative rxbytes";
+				}
+			}
+		}
+		echo join("\n", $buffer) . "\n";
+	}
+} else {
+	foreach ( $results as $switch ) {
+		if ( $switch->type == "usw" ) {
+			$devName = make_safe($switch->name);
+			echo "multigraph unifi_switch_ports_{$devName}\n";
+			foreach ( $switch->port_table as $port ) {
+				$buffer[] = "";
+				$portName = "port_" . zPad($port->port_idx);
+				echo "{$portName}_rxbyte.value {$port->rx_bytes}\n";
+				echo "{$portName}_txbyte.value {$port->tx_bytes}\n";
+				
+				$buffer[] = "multigraph unifi_switch_ports_{$devName}.{$portName}";
+				$buffer[] = "rxbytes.value {$port->rx_bytes}";
+				$buffer[] = "txbytes.value {$port->tx_bytes}";
+			}
+		}
+	}
+	echo join("\n", $buffer) . "\n";
+}
+
+?>
