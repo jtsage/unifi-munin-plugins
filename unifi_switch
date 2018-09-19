@@ -71,7 +71,7 @@ if(isset($argv[1])) {
 					$buffer[] = "";
 
 					$buffer[] = "multigraph unifi_switch_ports_{$devName}.{$portName}";
-					$buffer[] = "graph_title Transfer for port {$devName}:{$portLbl}";
+					$buffer[] = "graph_title Transfer for port {$switch->name}:{$portLbl}";
     				$buffer[] = "graph_vlabel Bytes/\${graph_period} rcvd (-) / trans (+)";
 					$buffer[] = "graph_category unifi";
 					$buffer[] = "graph_args --base 1000";
