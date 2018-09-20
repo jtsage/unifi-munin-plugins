@@ -32,6 +32,12 @@ A couple of PHP based munin plugins for UniFi gear.
 
  Display transfer stats for switch ports - multigraph
 
+ * unifi_networks
+
+ Display transfer stats per named network - if you have more than one firewall device on a "site", this 
+ plugin will almost certainly shit the bed.  I don't know if this is a use case that can/should exist, but
+ I didn't plan for it.
+
 ## Configuration:
 
 In your munin-node plugin configruation file, you'll need to add:

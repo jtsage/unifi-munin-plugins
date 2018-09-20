@@ -1,0 +1,80 @@
+#!/usr/bin/php
+<?php
+# Unifi Plugin:: Per named-network transfer stats
+#
+# Required config:
+#
+#  [unifi_*]
+#  env.unifi_user Controller_Username
+#  env.unifi_pass Controller_Password
+#  env.unifi_host https://unifi.fqdn.com:8443
+#  env.unifi_site Site_Name (often "default" for home use)
+#  env.unifi_ver 5.8.28 (Controller software version)
+#  env.unifi_ssl false (true == Fail on bad SSL certificate)
+###
+#
+# Required pre-requisite:
+#
+#  https://github.com/Art-of-WiFi/UniFi-API-client 
+#
+# I put in in my PHP search path, under unifi (on ubuntu, that'd be /usr/share/php/unifi/Client.php)
+#
+# I'm not positive how that package is versioned - I downloaded 9-17-2018 (SHA:2c03587)
+
+
+require_once('unifi/Client.php');
+
+function make_safe($name) {
+	return strtolower(preg_replace("/[^a-zA-Z0-9]+/", "_", $name));
+}
+
+
+
+$unifi_connection = new UniFi_API\Client(
+    $_ENV['unifi_user'],
+    $_ENV['unifi_pass'],
+    $_ENV['unifi_host'],
+    $_ENV['unifi_site'],
+    $_ENV['unifi_ver'],
+    $_ENV['unifi_ssl']
+);
+
+$login            = $unifi_connection->login();
+$results          = $unifi_connection->list_devices(); // returns a PHP array containing alarm objects
+
+if(isset($argv[1])) {
+	if($argv[1] == "config") {
+	    echo "graph_title Transfer per named network (5 min avg)\n";
+    	echo "graph_vlabel Bytes/\${graph_period} rcvd (-) / trans (+)\n";
+		echo "graph_category unifi\n";
+		echo "graph_args --base 1000\n";
+		echo "graph_info Bytes transfered per named network\n";
+		foreach ( $results as $device ) {
+			if ( $device->type == "ugw" ) {
+				foreach ( $device->network_table as $net ) {
+					$netName = make_safe($net->name);
+					echo "{$netName}_rxbytes.label " . $net->name . "\n";
+					echo "{$netName}_rxbytes.type DERIVE\n";
+					echo "{$netName}_rxbytes.min 0\n";
+					echo "{$netName}_rxbytes.graph no\n";
+					echo "{$netName}_txbytes.label " . $net->name . "\n";
+					echo "{$netName}_txbytes.type DERIVE\n";
+					echo "{$netName}_txbytes.min 0\n";
+					echo "{$netName}_txbytes.negative {$netName}_rxbytes\n";
+				}
+			}
+		}
+	}
+} else {
+	foreach ( $results as $device ) {
+		if ( $device->type == "ugw" ) {
+			foreach ( $device->network_table as $net ) {
+				$netName = make_safe($net->name);
+				echo "{$netName}_rxbytes.value " . $net->rx_bytes . "\n";
+				echo "{$netName}_txbytes.value " . $net->tx_bytes . "\n";
+			}
+		}
+	}
+}
+
+?>
