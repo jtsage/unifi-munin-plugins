@@ -1,6 +1,6 @@
 UniFi Munin Plugins
 ===================
-A couple of PHP based munin plugins for UniFi gear.
+A couple of PHP based munin plugins for UniFi gear. (a/n: These are currently kind of a mess.  Labels are not stellar, and it's all written in PHP - gonna work on a perl version shortly, and cleanup, etc.)
 
 ## Available Plugins:
 
