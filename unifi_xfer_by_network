@@ -1,0 +1,258 @@
+#!/usr/bin/perl
+# -*- perl -*-
+
+=encoding utf8
+
+=head1 NAME
+
+unifi_xfer_bt_network - Munin plugin to display transfer statistic for 
+each named network (VLAN, LAN, etc)
+
+=head1 APPLICABLE SYSTEMS
+
+Currently is cabable of polling the unifi line (Ubiquity) from the unifi 
+API - requires direct access to the controllor API.
+
+=head1 CONFIGURATION
+
+This script uses the multigraph functionality to generate many graphs.
+
+For multigraph operation, the "internal" graphs will be one per device
+with seperate metrics for sent and recieved. The main graph shows all
+networks at once.
+
+If you are only interested in a single combined graph, you can set:
+
+  [unifi_xfer_by_network]
+    env.multigraph no
+
+You will also need to supply your API login details - you may do so 
+per-plugin, or using a wildcard like below:
+
+  [unifi_*]
+    env.user Controller_Username
+    # default is ubnt
+    env.pass Controller_Password
+    # default is ubnt
+    env.host https://unifi.fqdn.com:8443
+    # default is localhost:8443
+    env.sslh no 
+    # Check That SSL host is valid, default is yes
+    env.sslp no 
+    # Check That SSL peer is valid, default is yes
+    env.name Site Name
+    # A pretty name for the unifi site - used in graph titles.
+    env.site site_string 
+    # default is "default" - found when you connect to the web interface - it's the term
+    # in the URL - /manage/site/site_string/dashboard
+
+=head1 DEPENDENCIES
+
+=over
+
+=item WWW::Curl::Easy
+
+Perl extension interface for libcurl
+
+=item JSON
+
+ JSON (JavaScript Object Notation) encoder/decoder
+
+=back
+
+=head1 LICENSE
+
+Copyright (C) 2018 J.T.Sage (jtsage@gmail.com)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see L<http://www.gnu.org/licenses/>.
+
+=head1 VERSION
+
+Most recent version available from 
+
+L<https://github.com/jtsage/unifi-munin-plugins>
+
+=head1 MAGICK MARKERS
+
+  #%# family=manual
+  #%# capabilities=
+
+=cut
+
+use warnings;
+use strict;
+use utf8;
+use JSON;
+use WWW::Curl::Easy;
+use Data::Dumper; # Debugging
+
+use Munin::Plugin;
+
+# Use multigraph by default
+my $use_multigraph = 1;
+
+# Allow user to override to no multigraph
+if ( defined $ENV{'multigraph'} && $ENV{'multigraph'} =~ m/no/i ) { $use_multigraph = 0; }
+
+# Somewhat (in)sane defaults for host, pass, etc.
+#
+# Note: SSL checking might not work.  My test rig does not.
+my %APIconfig = (
+	"user"     => (( defined $ENV{'user'} ) ? $ENV{'user'} : "ubnt"),
+	"pass"     => (( defined $ENV{'pass'} ) ? $ENV{'pass'} : "ubnt"),
+	"host"     => (( defined $ENV{'host'} ) ? $ENV{'host'} : "https://localhost:8443"),
+	"site"     => (( defined $ENV{'site'} ) ? $ENV{'site'} : "default"),
+	"sslh"     => (( defined $ENV{'sslh'} ) ? $ENV{'sslh'} : "yes"),
+	"sslp"     => (( defined $ENV{'sslp'} ) ? $ENV{'sslp'} : "yes"),
+	"name"     => (( defined $ENV{'name'} ) ? $ENV{'name'} : "Unnamed Site"),
+);
+
+# Set up needed API endpoints and date strings
+my $APILogin  = $APIconfig{"host"} . "/api/login";
+my $APILogout = $APIconfig{"host"} . "/api/logout";
+my $APIPoint  = $APIconfig{"host"} . "/api/s/" . $APIconfig{"site"} . "/stat/device";
+my $APIData   = "{'username':'" . $APIconfig{"user"} . "', 'password':'" . $APIconfig{"pass"} . "'}";
+my $APISSLHst = ( $APIconfig{"sslh"} =~ m/no/i ) ? 0 : 2;
+my $APISSLPer = ( $APIconfig{"sslp"} =~ m/no/i ) ? 0 : 1;
+my $APIRawResp; my $ignore;
+
+# Choose a cookie file.  Make it semi-random
+my $cookie_file = "/tmp/unifi_cookie_" . $$.time;
+
+# Init curl.
+my $curl= WWW::Curl::Easy->new() or die "curl init failed!\n";
+my $retcode;
+
+# Set up curl, and login to API
+$curl->setopt(CURLOPT_POST,1);
+$curl->setopt(CURLOPT_COOKIEJAR,$cookie_file);
+$curl->setopt(CURLOPT_COOKIEFILE,$cookie_file);
+$curl->setopt(CURLOPT_SSL_VERIFYPEER, $APISSLPer);
+$curl->setopt(CURLOPT_SSL_VERIFYHOST, $APISSLHst);
+$curl->setopt(CURL_SSLVERSION_TLSv1, 1);
+$curl->setopt(CURLOPT_URL, $APILogin);
+$curl->setopt(CURLOPT_POSTFIELDS, $APIData );
+$curl->setopt(CURLOPT_WRITEDATA, \$ignore);
+$retcode = $curl->perform;
+
+if ( $retcode != 0 ) { 
+	die "Unable to login to API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+}
+
+# Get some API data.
+$curl->setopt(CURLOPT_HTTPGET,1);
+$curl->setopt(CURLOPT_WRITEDATA, \$APIRawResp);
+$curl->setopt(CURLOPT_URL, $APIPoint);
+$retcode = $curl->perform;
+
+# Decode response
+my $jsonOBJ = new JSON;
+my $jsonResp = $jsonOBJ->allow_nonref->utf8->relaxed->decode($APIRawResp);
+
+if ( $retcode != 0 ) { 
+	die "Unable to fetch data from API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+}
+
+
+# Log back out. (Should invalidate our cookie file, just in case)
+$curl->setopt(CURLOPT_HTTPGET,1);
+$curl->setopt(CURLOPT_WRITEDATA, \$ignore);
+$curl->setopt(CURLOPT_URL, $APILogout);
+$retcode = $curl->perform;
+
+if ( $retcode != 0 ) { 
+	die "Unable to logout of API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+}
+
+undef($curl);
+unlink($cookie_file);
+
+# Work with the API data - grab everything we will need.
+my %netList;
+
+foreach my $device ( @{$jsonResp->{data}} ) {
+	if ( $device->{type} eq "ugw" ) {
+		foreach my $thisNet ( @{$device->{network_table}} ) {
+			$netList{make_safe($thisNet->{name})} = [ $thisNet->{name}, $thisNet->{"rx_bytes"}, $thisNet->{"tx_bytes"} ]
+		}
+	}
+}
+
+
+if ( defined($ARGV[0]) ) {
+	if ( $ARGV[0] eq "config" ) {
+		if ( $use_multigraph ) {
+			print "multigraph unifi_xfer_per_network\n";
+		}
+		print "graph_title Transfer per named network : " . $APIconfig{"name"} . "\n";
+		print "graph_vlabel Bytes/\${graph_period} rcvd (-) / trans (+)\n";
+		print "graph_category unifi\n";
+		print "graph_args --base 1000\n";
+		print "graph_info Bytes transfered per named network\n";
+
+		foreach my $thisNet ( sort keys %netList ) {
+			foreach my $term ( "_rxbytes", "_txbytes" ) {
+				print $thisNet . $term . ".label " . $netList{$thisNet}[0] . "\n";
+				print $thisNet . $term . ".type DERIVE\n";
+				print $thisNet . $term . ".min 0\n";
+			}
+			print $thisNet . "_rxbytes.graph no\n";
+			print $thisNet . "_txbytes.negative " . $thisNet . "_rxbytes\n";
+		}
+
+		if ( $use_multigraph ) {
+			foreach my $thisNet ( sort keys %netList ) {
+				print "multigraph unifi_xfer_per_network." . $thisNet . "\n";
+				print "graph_title Transfer per named network : " . $netList{$thisNet}[0] . ": " . $APIconfig{"name"} . "\n";
+				print "graph_vlabel Bytes/\${graph_period} rcvd (-) / trans (+)\n";
+				print "graph_category unifi\n";
+				print "graph_args --base 1000\n";
+				foreach my $term ( "rxbyte", "txbyte" ) {
+					print $term . ".label " . $netList{$thisNet}[0] . "\n";
+					print $term . ".type DERIVE\n";
+					print $term . ".min 0\n";
+				}
+				print "rxbyte.graph no\n";
+				print "txbyte.negative rxbyte\n";
+			}
+		}
+		exit 0;
+    }
+
+} else {
+	if ( $use_multigraph ) {
+		print "multigraph unifi_xfer_per_network\n";
+	}
+	foreach my $thisNet ( sort keys %netList ) {
+		print $thisNet . "_rxbytes.value " . $netList{$thisNet}[1] . "\n";
+		print $thisNet . "_txbytes.value " . $netList{$thisNet}[2] . "\n";
+	}
+	if ( $use_multigraph ) {
+		foreach my $thisNet ( sort keys %netList ) {
+			print "multigraph unifi_xfer_per_network." . $thisNet . "\n";
+			print "rxbyte.value " . $netList{$thisNet}[1] . "\n";
+			print "txbyte.value " . $netList{$thisNet}[2] . "\n";
+		}
+	}
+}
+
+
+sub make_safe {
+	# Make a munin-node safe version of the names
+	my $retty = $_[0];
+	$retty =~ s/[^A-Za-z0-9]/_/g;
+	return lc($retty);
+}
+
+
