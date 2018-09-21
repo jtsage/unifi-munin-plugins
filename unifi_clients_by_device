@@ -10,7 +10,7 @@ for each ubiquity / unifi device.
 
 =head1 APPLICABLE SYSTEMS
 
-Currently is cabable of polling the unifi line from the unifi 
+Currently is cabable of polling the unifi line (Ubiquity) from the unifi 
 API - requires direct access to the controllor API.
 
 =head1 CONFIGURATION
@@ -151,6 +151,7 @@ if ( $retcode != 0 ) {
 }
 
 # Get some API data.
+$curl->setopt(CURLOPT_HTTPGET,1);
 $curl->setopt(CURLOPT_WRITEDATA, \$APIRawResp);
 $curl->setopt(CURLOPT_URL, $APIPoint);
 $retcode = $curl->perform;
@@ -165,6 +166,7 @@ if ( $retcode != 0 ) {
 
 
 # Log back out. (Should invalidate our cookie file, just in case)
+$curl->setopt(CURLOPT_HTTPGET,1);
 $curl->setopt(CURLOPT_WRITEDATA, \$ignore);
 $curl->setopt(CURLOPT_URL, $APILogout);
 $retcode = $curl->perform;
