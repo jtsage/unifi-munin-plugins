@@ -1,0 +1,294 @@
+#!/usr/bin/perl
+# -*- perl -*-
+
+=encoding utf8
+
+=head1 NAME
+
+unifi_clients_by_type - Munin plugin to display clients connected 
+by each type (wired/wireless, user/guest, SSID)
+
+=head1 APPLICABLE SYSTEMS
+
+Currently is cabable of polling the unifi line (Ubiquity) from the unifi 
+API - requires direct access to the controllor API.
+
+=head1 CONFIGURATION
+
+This script uses the multigraph functionality to generate many graphs.
+
+For multigraph operation, the "internal" graphs will be one per connection
+type with seperate metrics for users and guests. The main graph shows total
+clients.
+
+If you are only interested in a single combined graph, you can set:
+
+  [unifi_clients_by_type]
+    env.multigraph no
+
+You will also need to supply your API login details - you may do so 
+per-plugin, or using a wildcard like below:
+
+  [unifi_*]
+    env.user Controller_Username
+    # default is ubnt
+    env.pass Controller_Password
+    # default is ubnt
+    env.host https://unifi.fqdn.com:8443
+    # default is localhost:8443
+    env.sslh no 
+    # Check That SSL host is valid, default is yes
+    env.sslp no 
+    # Check That SSL peer is valid, default is yes
+    env.name Site Name
+    # A pretty name for the unifi site - used in graph titles.
+    env.site site_string 
+    # default is "default" - found when you connect to the web interface - it's the term
+    # in the URL - /manage/site/site_string/dashboard
+
+=head1 DEPENDENCIES
+
+=over
+
+=item WWW::Curl::Easy
+
+Perl extension interface for libcurl
+
+=item JSON
+
+ JSON (JavaScript Object Notation) encoder/decoder
+
+=back
+
+=head1 LICENSE
+
+Copyright (C) 2018 J.T.Sage (jtsage@gmail.com)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see L<http://www.gnu.org/licenses/>.
+
+=head1 VERSION
+
+Most recent version available from 
+
+L<https://github.com/jtsage/unifi-munin-plugins>
+
+=head1 MAGICK MARKERS
+
+  #%# family=manual
+  #%# capabilities=
+
+=cut
+
+use warnings;
+use strict;
+use utf8;
+use JSON;
+use WWW::Curl::Easy;
+# use Data::Dumper; # Debugging
+
+use Munin::Plugin;
+
+# Use multigraph by default
+my $use_multigraph = 1;
+
+# Allow user to override to no multigraph
+if ( defined $ENV{'multigraph'} && $ENV{'multigraph'} =~ m/no/i ) { $use_multigraph = 0; }
+
+# Somewhat (in)sane defaults for host, pass, etc.
+#
+# Note: SSL checking might not work.  My test rig does not.
+my %APIconfig = (
+	"user"     => (( defined $ENV{'user'} ) ? $ENV{'user'} : "ubnt"),
+	"pass"     => (( defined $ENV{'pass'} ) ? $ENV{'pass'} : "ubnt"),
+	"host"     => (( defined $ENV{'host'} ) ? $ENV{'host'} : "https://localhost:8443"),
+	"site"     => (( defined $ENV{'site'} ) ? $ENV{'site'} : "default"),
+	"sslh"     => (( defined $ENV{'sslh'} ) ? $ENV{'sslh'} : "yes"),
+	"sslp"     => (( defined $ENV{'sslp'} ) ? $ENV{'sslp'} : "yes"),
+	"name"     => (( defined $ENV{'name'} ) ? $ENV{'name'} : "Unnamed Site"),
+);
+
+# Set up needed API endpoints and date strings
+my $APILogin  = $APIconfig{"host"} . "/api/login";
+my $APILogout = $APIconfig{"host"} . "/api/logout";
+my $APIPoint1  = $APIconfig{"host"} . "/api/s/" . $APIconfig{"site"} . "/rest/wlanconf";
+my $APIPoint2  = $APIconfig{"host"} . "/api/s/" . $APIconfig{"site"} . "/stat/sta";
+my $APIData   = "{'username':'" . $APIconfig{"user"} . "', 'password':'" . $APIconfig{"pass"} . "'}";
+my $APISSLHst = ( $APIconfig{"sslh"} =~ m/no/i ) ? 0 : 2;
+my $APISSLPer = ( $APIconfig{"sslp"} =~ m/no/i ) ? 0 : 1;
+my $APIRawResp1; my $APIRawResp2; my $ignore;
+
+# Choose a cookie file.  Make it semi-random
+my $cookie_file = "/tmp/unifi_cookie_" . $$.time;
+
+# Init curl.
+my $curl= WWW::Curl::Easy->new() or die "curl init failed!\n";
+my $retcode;
+
+# Set up curl, and login to API
+$curl->setopt(CURLOPT_POST,1);
+$curl->setopt(CURLOPT_COOKIEJAR,$cookie_file);
+$curl->setopt(CURLOPT_COOKIEFILE,$cookie_file);
+$curl->setopt(CURLOPT_SSL_VERIFYPEER, $APISSLPer);
+$curl->setopt(CURLOPT_SSL_VERIFYHOST, $APISSLHst);
+$curl->setopt(CURL_SSLVERSION_TLSv1, 1);
+$curl->setopt(CURLOPT_URL, $APILogin);
+$curl->setopt(CURLOPT_POSTFIELDS, $APIData );
+$curl->setopt(CURLOPT_WRITEDATA, \$ignore);
+$retcode = $curl->perform;
+
+if ( $retcode != 0 ) { 
+	die "Unable to login to API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+}
+
+# Get some API data.
+$curl->setopt(CURLOPT_HTTPGET,1);
+$curl->setopt(CURLOPT_WRITEDATA, \$APIRawResp1);
+$curl->setopt(CURLOPT_URL, $APIPoint1);
+$retcode = $curl->perform;
+
+# Decode response
+my $jsonOBJ1 = new JSON;
+my $jsonResp1 = $jsonOBJ1->allow_nonref->utf8->relaxed->decode($APIRawResp1);
+
+if ( $retcode != 0 ) { 
+	die "Unable to fetch data from API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+}
+
+# Get some more API data.
+$curl->setopt(CURLOPT_HTTPGET,1);
+$curl->setopt(CURLOPT_WRITEDATA, \$APIRawResp2);
+$curl->setopt(CURLOPT_URL, $APIPoint2);
+$retcode = $curl->perform;
+
+# Decode response
+my $jsonOBJ2 = new JSON;
+my $jsonResp2 = $jsonOBJ2->allow_nonref->utf8->relaxed->decode($APIRawResp2);
+
+if ( $retcode != 0 ) { 
+	die "Unable to fetch data from API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+}
+
+# Log back out. (Should invalidate our cookie file, just in case)
+$curl->setopt(CURLOPT_HTTPGET,1);
+$curl->setopt(CURLOPT_WRITEDATA, \$ignore);
+$curl->setopt(CURLOPT_URL, $APILogout);
+$retcode = $curl->perform;
+
+if ( $retcode != 0 ) { 
+	die "Unable to logout of API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+}
+
+undef($curl);
+unlink($cookie_file);
+
+# Work with the API data - grab everything we will need.
+#
+# ["Name", multigraph, users, guests]
+#
+my %netList = (
+	"wired" => ["Wired Connection", 1, 0, 0],
+	"wifi" => ["Wireless Connection", 1, 0, 0],
+	"user" => ["Total Users", 0, 0, 0],
+	"guest" => ["Total Guests", 0, 0, 0]
+);
+my @netOrderList = ("wired", "wifi", "user", "guest");
+my @wlans;
+
+
+foreach my $device ( @{$jsonResp1->{data}} ) {
+	$netList{make_safe($device->{name})} = [$device->{name}, 1, 0, 0];
+	push @wlans, make_safe($device->{name});
+}
+
+foreach my $device ( sort @wlans ) {
+	push @netOrderList, $device;
+}
+
+if ( defined($ARGV[0]) ) {
+	if ( $ARGV[0] eq "config" ) {
+		if ( $use_multigraph ) {
+			print "multigraph unifi_clients_per_network\n";
+		}
+		print "graph_title Clients Connected / Network : " . $APIconfig{"name"} . "\n";
+		print "graph_args -l 0 --base 1000\n";
+		print "graph_vlabel clients\n";
+		print "graph_category unifi\n";
+
+		foreach my $thisNet ( @netOrderList ) {
+			print $thisNet . ".label " . $netList{$thisNet}[0] . "\n";
+		}
+
+		if ( $use_multigraph ) {
+			foreach my $thisNet ( @netOrderList ) {
+				if ( $netList{$thisNet}[1] == 1 ) {
+					print "multigraph unifi_clients_per_network." . $thisNet . "\n";
+					print "graph_title Clients Connected: " . $netList{$thisNet}[0] . ": " . $APIconfig{"name"} . "\n";
+					print "graph_args -l 0 --base 1000\n";
+					print "graph_vlabel connected\n";
+					print "graph_category unifi\n";
+					print "users.label Users\n";
+					print "guests.label Guests\n";
+				}
+			}
+		}
+		exit 0;
+    }
+} else {
+	foreach my $client ( @{$jsonResp2->{data}} ) {
+		if ( $client->{is_wired} ) {
+			if ( $client->{is_guest} ) {
+				$netList{'wired'}[3]++;
+				$netList{'guest'}[3]++;
+			} else {
+				$netList{'wired'}[2]++;
+				$netList{'user'}[2]++;
+			}
+		} else {
+			if ( $client->{is_guest} ) {
+				$netList{make_safe($client->{essid})}[3]++;
+				$netList{'wifi'}[3]++;
+				$netList{'guest'}[3]++;
+			} else {
+				$netList{make_safe($client->{essid})}[2]++;
+				$netList{'wifi'}[2]++;
+				$netList{'user'}[2]++;
+			}
+		}
+	}
+
+	if ( $use_multigraph ) {
+		print "multigraph unifi_clients_per_network\n";
+	}
+	foreach my $thisNet ( @netOrderList ) {
+		print $thisNet . ".value " . ( $netList{$thisNet}[2] + $netList{$thisNet}[3] ) . "\n";
+	}
+	if ( $use_multigraph ) {
+		foreach my $thisNet ( @netOrderList ) {
+			if ( $netList{$thisNet}[1] == 1 ) {
+				print "multigraph unifi_clients_per_network." . $thisNet . "\n";
+				print "users.value " . $netList{$thisNet}[2] . "\n";
+				print "guests.value " . $netList{$thisNet}[3] . "\n";
+			}
+		}
+	}
+}
+
+sub make_safe {
+	# Make a munin-node safe version of the names
+	my $retty = $_[0];
+	$retty =~ s/[^A-Za-z0-9]/_/g;
+	return lc($retty);
+}
+
+
