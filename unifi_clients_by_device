@@ -113,8 +113,8 @@ my %APIconfig = (
 	"pass"     => (( defined $ENV{'pass'} ) ? $ENV{'pass'} : "ubnt"),
 	"host"     => (( defined $ENV{'host'} ) ? $ENV{'host'} : "https://localhost:8443"),
 	"site"     => (( defined $ENV{'site'} ) ? $ENV{'site'} : "default"),
-	"sslh"     => (( defined $ENV{'sslh'} ) ? $ENV{'sslh'}  : "yes"),
-	"sslp"     => (( defined $ENV{'sslp'} ) ? $ENV{'sslp'}  : "yes"),
+	"sslh"     => (( defined $ENV{'sslh'} ) ? $ENV{'sslh'} : "yes"),
+	"sslp"     => (( defined $ENV{'sslp'} ) ? $ENV{'sslp'} : "yes"),
 	"name"     => (( defined $ENV{'name'} ) ? $ENV{'name'} : "Unnamed Site"),
 );
 
