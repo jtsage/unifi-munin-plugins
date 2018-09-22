@@ -95,7 +95,7 @@ use strict;
 use utf8;
 use JSON;
 use WWW::Curl::Easy;
-use Data::Dumper; # Debugging
+#use Data::Dumper; # Debugging
 
 use Munin::Plugin;
 
