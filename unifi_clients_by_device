@@ -182,7 +182,7 @@ unlink($cookie_file);
 my %devList;
 
 foreach my $device ( @{$jsonResp->{data}} ) {
-	$devList{make_safe($device->{name})} = [$device->{name}, $device->{"user-num_sta"}, $device->{"guest-num_sta"} ];
+	$devList{make_safe($device->{name})} = [$device->{name}, ($device->{"user-num_sta"} || 0), ($device->{"guest-num_sta"} || 0) ];
 }
 
 if ( defined($ARGV[0]) ) {
