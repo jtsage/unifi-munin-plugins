@@ -215,7 +215,7 @@ if ( defined($ARGV[0]) ) {
 			print "multigraph unifi_xfer_per_radio\n";
 		}
 		print "graph_title Transfer per radio : " . $APIconfig{"name"} . "\n";
-		print "graph_vlabel Bytes/\${graph_period}\n";
+		print "graph_vlabel Packets/\${graph_period}\n";
 		print "graph_category unifi\n";
 		print "graph_args --base 1000\n";
 		print "graph_info Packets per radio\n";
