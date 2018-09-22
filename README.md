@@ -1,6 +1,6 @@
 UniFi Munin Plugins
 ===================
-A couple of PHP based munin plugins for UniFi gear - All written in 100% perl.
+A couple of munin plugins for UniFi gear - All written in 100% perl (standard pre-requisites, no 3rd party API client)
 
 ## Available Plugins:
 
