@@ -46,6 +46,10 @@ A couple of munin plugins for UniFi gear - All written in 100% perl (standard pr
 
  Display transfer statistics per physical radio (APs only)
 
+ * unifi\_xfer\_by\_uplink
+
+ Displays transfer statistics for your network uplink (This is not robust - I have a single UFW, and it does not have a wan failover port - at a minimum, I'd need dumps from the /stat/device API point for a bunch of configurations to make this not choke if your configuration doesn't match mine.  If you do feel the need to send, there probably is sanitzation to be done in there.)
+
 
 ## Configuration:
 
