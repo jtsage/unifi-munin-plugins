@@ -28,6 +28,10 @@ A couple of munin plugins for UniFi gear - All written in 100% perl (standard pr
 
  Display the memory usage on each unifi device
 
+ * unifi\_device\_uptime
+
+ Display the uptime of each unifi device, in days
+
  * unifi\_xfer\_by\_device _(multigraph)_
 
  Display transfer statistics on a per unifi device basis
