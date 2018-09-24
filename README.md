@@ -90,6 +90,10 @@ plugin in this collection, my munin-update time went up by about 30 seconds. Eve
 beast - from there, it's on the local machine.  I suppose local cacheing could be a thing, but IIRC, munin is asyncronous, so it's only going
 to save 1 * number\_of\_plugins API calls.  I suppose I could dump all of this in a single multigraph, but then there is no easy pick-and-choose method.
 
+This is what adding all of these did to my munin processing time:
+
+![performance graph](https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/perf_concern.png)
+
 ## Pull Requests, etc.
 
 Eventually this will all get dropped into the munin contrib repository.  But I figured the community would want to test and make changes first.
