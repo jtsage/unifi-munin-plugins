@@ -76,6 +76,8 @@ In your munin-node plugin configruation file, you'll need to add:
       # default is "default" - found when you connect to the web interface - it's the term
       # in the URL - /manage/site/site_string/dashboard
 
+It is probably a wise idea to add a read-only admin to your site for this purpose.  The munin-node configuration file is not a terribly secure place to store login details.
+
 ## Prerequisites:
 
 All scripts require 
