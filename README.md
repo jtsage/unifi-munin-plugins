@@ -1,6 +1,8 @@
 UniFi Munin Plugins
 ===================
-A couple of munin plugins for UniFi gear - All written in 100% perl (standard pre-requisites, no 3rd party API client)
+A couple of munin plugins for UniFi gear - All written in 100% perl 
+
+ * standard pre-requisites, no 3rd party API client
 
 ## Available Plugins:
 
@@ -38,9 +40,9 @@ A couple of munin plugins for UniFi gear - All written in 100% perl (standard pr
 
  * unifi\_xfer\_by\_network _(multigraph)_
 
- Display transfer statistics per named network (VLAN, LAN, etc) (Requires a USG) - if you have more than one firewall device on a "site", this 
- plugin will almost certainly shit the bed.  I don't know if this is a use case that can/should exist, but
- I didn't plan for it.
+ Display transfer statistics per named network (VLAN, LAN, etc) (Requires a USG) - if you have more 
+ than one firewall device on a "site", this plugin will almost certainly shit the bed.  I don't know 
+ if this is a use case that can/should exist, but I didn't plan for it.
 
  * unifi\_xfer\_by\_port _(multigraph)_
 
@@ -52,7 +54,12 @@ A couple of munin plugins for UniFi gear - All written in 100% perl (standard pr
 
  * unifi\_xfer\_by\_uplink
 
- Displays transfer statistics for your network uplink (This is not robust - I have a single UFW, and it does not have a wan failover port - at a minimum, I'd need dumps from the /stat/device API point for a bunch of configurations to make this not choke if your configuration doesn't match mine.  If you do feel the need to send, there probably is sanitzation to be done in there.)
+ Displays transfer statistics for your network uplink (This is not robust - I have a single UFW, and 
+ it does not have a wan failover port - at a minimum, I'd need dumps from the /stat/device API point 
+ for a bunch of configurations to make this not choke if your configuration doesn't match mine.  If 
+ you do feel the need to send, there probably is sanitzation to be done in there.) (Also, should the 
+ plugin run while speedtest is running, it'll report zero - by default, munin runs every 5 min, 
+ on :00, :05, etc - plan accordingly)
 
 
 ## Configuration:
@@ -76,7 +83,8 @@ In your munin-node plugin configruation file, you'll need to add:
       # default is "default" - found when you connect to the web interface - it's the term
       # in the URL - /manage/site/site_string/dashboard
 
-It is probably a wise idea to add a read-only admin to your site for this purpose.  The munin-node configuration file is not a terribly secure place to store login details.
+It is probably a wise idea to add a read-only admin to your site for this purpose.  The munin-node 
+configuration file is not a terribly secure place to store login details.
 
 ## Prerequisites:
 
@@ -87,10 +95,12 @@ All scripts require
 
 ## Performance:
 
-Largely unknown.  My use case is querying a controller that is not on the munin-node host, and the link is not stellar - that said, running every
-plugin in this collection, my munin-update time went up by about 30 seconds. Every plugin is going to hit the API twice - just the nature of the 
-beast - from there, it's on the local machine.  I suppose local cacheing could be a thing, but IIRC, munin is asyncronous, so it's only going
-to save 1 * number\_of\_plugins API calls.  I suppose I could dump all of this in a single multigraph, but then there is no easy pick-and-choose method.
+Largely unknown.  My use case is querying a controller that is not on the munin-node host, and the 
+link is not stellar - that said, running every plugin in this collection, my munin-update time went 
+up by about 30 seconds. Every plugin is going to hit the API twice - just the nature of the beast - 
+from there, it's on the local machine.  I suppose local cacheing could be a thing, but IIRC, munin 
+is asyncronous, so it's only going to save 1 * number\_of\_plugins API calls.  I suppose I could 
+dump all of this in a single multigraph, but then there is no easy pick-and-choose method.
 
 This is what adding all of these did to my munin processing time:
 
@@ -98,9 +108,10 @@ This is what adding all of these did to my munin processing time:
 
 ## Pull Requests, etc.
 
-Eventually this will all get dropped into the munin contrib repository.  But I figured the community would want to test and make changes first.
+Eventually this will all get dropped into the munin contrib repository.  But I figured the community 
+would want to test and make changes first.
 
-If you have anything else you want added, drop a new one here, or open an issue with the suggestion (pointing out the API node you want added 
-would be hugely helpful - it's not well docuemted)
+If you have anything else you want added, drop a new one here, or open an issue with the suggestion 
+(pointing out the API node you want added would be hugely helpful - it's not well docuemted)
 
 
