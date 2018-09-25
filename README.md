@@ -12,33 +12,49 @@ A couple of munin plugins for UniFi gear - All written in 100% perl
 
  * unifi\_clients\_by\_device _(multigraph)_
 
+ <img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_clients_by_device.png" style="display:block; margin: 0 auto;" >
+
  Display a count of clients connected per unifi device (physical device)
 
  * unifi\_clients\_by\_type _(multigraph)_
+
+<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_clients_by_type.png" style="display:block; margin: 0 auto;" >
 
  Display a count of clients grouped by how they are connected (wired/wireless, user/guest, SSID)
 
  * unifi\_device\_cpu
 
+<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_device_cpu.png" style="display:block; margin: 0 auto;" >
+
  Display CPU usage on each unifi device
 
  * unifi\_device\_load
+
+<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_device_load.png" style="display:block; margin: 0 auto;" >
 
  Display the load average on each unifi device
 
  * unifi\_device\_mem
 
+<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_device_mem.png" style="display:block; margin: 0 auto;" >
+
  Display the memory usage on each unifi device
 
  * unifi\_device\_uptime
+
+<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_device_uptime.png" style="display:block; margin: 0 auto;" >
 
  Display the uptime of each unifi device, in days
 
  * unifi\_xfer\_by\_device _(multigraph)_
 
+<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_xfer_by_device.png" style="display:block; margin: 0 auto;" >
+
  Display transfer statistics on a per unifi device basis
 
  * unifi\_xfer\_by\_network _(multigraph)_
+
+<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_xfer_by_network.png" style="display:block; margin: 0 auto;" >
 
  Display transfer statistics per named network (VLAN, LAN, etc) (Requires a USG) - if you have more 
  than one firewall device on a "site", this plugin will almost certainly shit the bed.  I don't know 
@@ -46,13 +62,19 @@ A couple of munin plugins for UniFi gear - All written in 100% perl
 
  * unifi\_xfer\_by\_port _(multigraph)_
 
+<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_xfer_by_port.png" style="display:block; margin: 0 auto;" >
+
  Display transfer statistics per physical network port (Switches only)
 
  * unifi\_xfer\_by\_radio _(multigraph)_
 
+<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_xfer_by_radio.png" style="display:block; margin: 0 auto;" >
+
  Display transfer statistics per physical radio (APs only)
 
  * unifi\_xfer\_by\_uplink
+
+<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_xfer_by_uplink.png" style="display:block; margin: 0 auto;" >
 
  Displays transfer statistics for your network uplink (This is not robust - I have a single UFW, and 
  it does not have a wan failover port - at a minimum, I'd need dumps from the /stat/device API point 
