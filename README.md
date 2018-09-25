@@ -12,13 +12,13 @@ A couple of munin plugins for UniFi gear - All written in 100% perl
 
  * unifi\_clients\_by\_device _(multigraph)_
 
- <img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_clients_by_device.png" style="display:block; margin: 0 auto;" >
+<div style="text-align:center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_clients_by_device.png" /></div>
 
  Display a count of clients connected per unifi device (physical device)
 
  * unifi\_clients\_by\_type _(multigraph)_
 
-<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_clients_by_type.png" style="display:block; margin: 0 auto;" >
+<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_clients_by_network.png" style="display:block; margin: 0 auto;" >
 
  Display a count of clients grouped by how they are connected (wired/wireless, user/guest, SSID)
 
