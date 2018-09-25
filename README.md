@@ -6,82 +6,100 @@ A couple of munin plugins for UniFi gear - All written in 100% perl
 
 ## Available Plugins:
 
- * archive/
-
- Should you reall wish to, roll back in the history here for the original PHP versions of these.
 
  * unifi\_clients\_by\_device _(multigraph)_
-
-<div style="text-align:center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_clients_by_device.png" /></div>
-
+ 
  Display a count of clients connected per unifi device (physical device)
+ 
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_clients_by_device.png" /></p>
+
 
  * unifi\_clients\_by\_type _(multigraph)_
-
-<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_clients_by_network.png" style="display:block; margin: 0 auto;" >
-
+ 
  Display a count of clients grouped by how they are connected (wired/wireless, user/guest, SSID)
 
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_clients_by_network.png" /></p>
+
+ 
+
  * unifi\_device\_cpu
-
-<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_device_cpu.png" style="display:block; margin: 0 auto;" >
-
+ 
  Display CPU usage on each unifi device
+ 
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_device_cpu.png" /></p>
+
+
 
  * unifi\_device\_load
 
-<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_device_load.png" style="display:block; margin: 0 auto;" >
-
  Display the load average on each unifi device
+ 
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_device_load.png" /></p>
+
+
 
  * unifi\_device\_mem
-
-<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_device_mem.png" style="display:block; margin: 0 auto;" >
-
+ 
  Display the memory usage on each unifi device
 
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_device_mem.png" /></p>
+
+
+
  * unifi\_device\_uptime
-
-<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_device_uptime.png" style="display:block; margin: 0 auto;" >
-
+ 
  Display the uptime of each unifi device, in days
 
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_device_uptime.png" /></p>
+
+
+
  * unifi\_xfer\_by\_device _(multigraph)_
-
-<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_xfer_by_device.png" style="display:block; margin: 0 auto;" >
-
+ 
  Display transfer statistics on a per unifi device basis
 
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_xfer_by_device.png" /></p>
+
+
+
  * unifi\_xfer\_by\_network _(multigraph)_
-
-<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_xfer_by_network.png" style="display:block; margin: 0 auto;" >
-
+ 
  Display transfer statistics per named network (VLAN, LAN, etc) (Requires a USG) - if you have more 
  than one firewall device on a "site", this plugin will almost certainly shit the bed.  I don't know 
  if this is a use case that can/should exist, but I didn't plan for it.
 
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_xfer_by_network.png" /></p>
+
+
+
  * unifi\_xfer\_by\_port _(multigraph)_
-
-<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_xfer_by_port.png" style="display:block; margin: 0 auto;" >
-
+ 
  Display transfer statistics per physical network port (Switches only)
 
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_xfer_by_port.png" /></p>
+
+
+
  * unifi\_xfer\_by\_radio _(multigraph)_
-
-<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_xfer_by_radio.png" style="display:block; margin: 0 auto;" >
-
+ 
  Display transfer statistics per physical radio (APs only)
 
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_xfer_by_radio.png" /></p>
+
+
+
  * unifi\_xfer\_by\_uplink
-
-<img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_xfer_by_uplink.png" style="display:block; margin: 0 auto;" >
-
+ 
  Displays transfer statistics for your network uplink (This is not robust - I have a single UFW, and 
  it does not have a wan failover port - at a minimum, I'd need dumps from the /stat/device API point 
  for a bunch of configurations to make this not choke if your configuration doesn't match mine.  If 
  you do feel the need to send, there probably is sanitzation to be done in there.) (Also, should the 
  plugin run while speedtest is running, it'll report zero - by default, munin runs every 5 min, 
  on :00, :05, etc - plan accordingly)
+
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_xfer_by_uplink.png" /></p>
+
+
 
 
 ## Configuration:
@@ -126,7 +144,7 @@ dump all of this in a single multigraph, but then there is no easy pick-and-choo
 
 This is what adding all of these did to my munin processing time:
 
-![performance graph](https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/perf_concern.png)
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/perf_concern.png" /></p>
 
 ## Pull Requests, etc.
 
