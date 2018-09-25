@@ -2,7 +2,8 @@ UniFi Munin Plugins
 ===================
 A couple of munin plugins for UniFi gear - All written in 100% perl 
 
- * standard pre-requisites, no 3rd party API client
+ * standard pre-requisites, no 3rd party API client.
+ * does not yet support WebRTC requests - needs direct access to the controller.
 
 ## Available Plugins:
 
@@ -106,22 +107,30 @@ A couple of munin plugins for UniFi gear - All written in 100% perl
 
 In your munin-node plugin configruation file, you'll need to add:
 
-    [unifi_*]
-      env.user Controller_Username
-      # default is ubnt
-      env.pass Controller_Password
-      # default is ubnt
-      env.host https://unifi.fqdn.com:8443
-      # default is localhost:8443
-      env.sslh no 
-      # Check That SSL host is valid, default is yes
-      env.sslp no 
-      # Check That SSL peer is valid, default is yes
-      env.name Site Name
-      # A pretty name for the unifi site - used in graph titles.
-      env.site site_string 
-      # default is "default" - found when you connect to the web interface - it's the term
-      # in the URL - /manage/site/site_string/dashboard
+```ini
+[unifi_*]
+  env.user Controller_Username
+  # default is ubnt
+
+  env.pass Controller_Password
+  # default is ubnt
+
+  env.host https://unifi.fqdn.com:8443
+  # default is localhost:8443
+
+  env.sslh no 
+  # Check That SSL host is valid, default is yes
+
+  env.sslp no 
+  # Check That SSL peer is valid, default is yes
+
+  env.name Site Name
+  # A pretty name for the unifi site - used in graph titles.
+
+  env.site site_string 
+  # default is "default" - found when you connect to the web interface - it's the term
+  # in the URL - /manage/site/site_string/dashboard
+```
 
 It is probably a wise idea to add a read-only admin to your site for this purpose.  The munin-node 
 configuration file is not a terribly secure place to store login details.
@@ -130,8 +139,10 @@ configuration file is not a terribly secure place to store login details.
 
 All scripts require 
 
- * Perl : WWW::Curl::Easy
- * Perl : JSON
+ * [Perl : WWW::Curl::Easy](https://metacpan.org/pod/WWW::Curl)
+   * WWW::Curl is a Perl extension interface for libcurl.
+ * [Perl : JSON](https://metacpan.org/pod/JSON)
+   * JSON (JavaScript Object Notation) encoder/decoder
 
 ## Performance:
 
@@ -154,4 +165,11 @@ would want to test and make changes first.
 If you have anything else you want added, drop a new one here, or open an issue with the suggestion 
 (pointing out the API node you want added would be hugely helpful - it's not well docuemted)
 
+## Special Thanks
 
+Thanks to the following:
+
+ * [hhansen06](https://github.com/hhansen06) - [Forum Post](https://community.ubnt.com/t5/UniFi-Wireless/Unifi-Munin-Plugin-V3-only/m-p/454653) - Did an initial PHP plugin that sparked the idea.
+ 
+ * [Art-of-WiFi](https://github.com/Art-of-WiFi/) - PHP API implementation that was borrowed from heavily to figure out appropriate endpoints.
+ 
