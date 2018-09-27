@@ -26,6 +26,13 @@ If you are only interested in a single combined graph, you can set:
   [unifi_clients_by_type]
     env.multigraph no
 
+Additionally, by default this plugin will also total authorized and unauthorized guests - 
+if your site set up is using a ESSID security on the guest network, this is probably 
+useless information.  To toggle it off:
+
+  [unifi_clients_by_type]
+    env.authunauth no
+
 You will also need to supply your API login details - you may do so 
 per-plugin, or using a wildcard like below:
 
@@ -101,9 +108,11 @@ use Munin::Plugin;
 
 # Use multigraph by default
 my $use_multigraph = 1;
+my $show_authorized = 1;
 
 # Allow user to override to no multigraph
 if ( defined $ENV{'multigraph'} && $ENV{'multigraph'} =~ m/no/i ) { $use_multigraph = 0; }
+if ( defined $ENV{'authunauth'} && $ENV{'authunauth'} =~ m/no/i ) { $show_authorized = 0; }
 
 # Somewhat (in)sane defaults for host, pass, etc.
 #
@@ -200,9 +209,19 @@ my %netList = (
 	"wired" => ["Wired Connection", 1, 0, 0],
 	"wifi" => ["Wireless Connection", 1, 0, 0],
 	"user" => ["Total Users", 0, 0, 0],
-	"guest" => ["Total Guests", 0, 0, 0]
+	"guest" => ["Total Guests", 0, 0, 0],
+	"authed" => ["Authorized Guests", 0, 0, 0],
+	"unauth" => ["Unauthorized Guests", 0, 0, 0]
 );
-my @netOrderList = ("wired", "wifi", "user", "guest");
+
+my @netOrderList;
+
+if ( $show_authorized ) {
+	@netOrderList = ("wired", "wifi", "user", "guest", "authed", "unauth");
+} else {
+	@netOrderList = ("wired", "wifi", "user", "guest");
+}
+
 my @wlans;
 
 
@@ -259,6 +278,11 @@ if ( defined($ARGV[0]) ) {
 				$netList{make_safe($client->{essid})}[3]++;
 				$netList{'wifi'}[3]++;
 				$netList{'guest'}[3]++;
+				if ( $client->{authorized} ) {
+					$netList{'authed'}[3]++;
+				} else {
+					$netList{'unauth'}[3]++;
+				}
 			} else {
 				$netList{make_safe($client->{essid})}[2]++;
 				$netList{'wifi'}[2]++;
