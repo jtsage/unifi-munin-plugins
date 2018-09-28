@@ -46,6 +46,12 @@ per-plugin, or using a wildcard like below:
     # default is "default" - found when you connect to the web interface - it's the term
     # in the URL - /manage/site/site_string/dashboard
 
+=head1 CAPABILITIES
+
+This plugin is a multigraph plugin by default.
+
+This plugin supports DIRTYCONFIG : L<http://guide.munin-monitoring.org/en/latest/plugin/protocol-dirtyconfig.html>
+
 =head1 DEPENDENCIES
 
 =over
@@ -225,6 +231,9 @@ if ( defined($ARGV[0]) ) {
 				print $devList{$thisDev}[0] . "_" . @{$thisRad}[0] . "_pack.label " . @{$thisRad}[1] . "\n";
 				print $devList{$thisDev}[0] . "_" . @{$thisRad}[0] . "_pack.type DERIVE\n";
 				print $devList{$thisDev}[0] . "_" . @{$thisRad}[0] . "_pack.min 0\n";
+				if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) {
+					print $devList{$thisDev}[0] . "_" . @{$thisRad}[0] . "_pack.value " . @{$thisRad}[2] . "\n";
+				}
 			}
 		}
 
@@ -246,6 +255,11 @@ if ( defined($ARGV[0]) ) {
 					print @{$thisRad}[0] . "_err.label " . @{$thisRad}[5] . " Errors\n";
 					print @{$thisRad}[0] . "_err.type DERIVE\n";
 					print @{$thisRad}[0] . "_err.min 0\n";
+					if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) {
+						print @{$thisRad}[0] . "_pkt.value " . @{$thisRad}[2] . "\n";
+						print @{$thisRad}[0] . "_dret.value " . @{$thisRad}[3] . "\n";
+						print @{$thisRad}[0] . "_err.value " . @{$thisRad}[4] . "\n";
+					}
 				}
 			}
 		}

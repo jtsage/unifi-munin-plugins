@@ -35,6 +35,10 @@ per-plugin, or using a wildcard like below:
     # default is "default" - found when you connect to the web interface - it's the term
     # in the URL - /manage/site/site_string/dashboard
 
+=head1 CAPABILITIES
+
+This plugin supports DIRTYCONFIG : L<http://guide.munin-monitoring.org/en/latest/plugin/protocol-dirtyconfig.html>
+
 =head1 DEPENDENCIES
 
 =over
@@ -209,7 +213,12 @@ if ( defined($ARGV[0]) ) {
 		print "rx_bytes.graph no\n";
 		print "tx_speed.negative rx_speed\n";
 		print "tx_bytes.negative rx_bytes\n";
-
+		if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) {
+			print "rx_speed.value " . $netList{"rx_speed"} . "\n";
+			print "tx_speed.value " . $netList{"tx_speed"} . "\n";
+			print "rx_bytes.value " . $netList{"rx_bytes"} . "\n";
+			print "tx_bytes.value " . $netList{"tx_bytes"} . "\n";
+		}
 		exit 0;
     }
 
