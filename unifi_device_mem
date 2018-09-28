@@ -35,6 +35,10 @@ per-plugin, or using a wildcard like below:
     # default is "default" - found when you connect to the web interface - 
     # it's the term in the URL - /manage/site/site_string/dashboard
 
+=head1 CAPABILITIES
+
+This plugin supports DIRTYCONFIG : L<http://guide.munin-monitoring.org/en/latest/plugin/protocol-dirtyconfig.html>
+
 =head1 DEPENDENCIES
 
 =over
@@ -183,6 +187,9 @@ if ( defined($ARGV[0]) ) {
 
 		foreach my $thisDev ( sort keys %devList ) {
 			print $thisDev . ".label " . $devList{$thisDev}[0] . "\n";
+			if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) {
+				print $thisDev . ".value " . ( $devList{$thisDev}[1] ) . "\n";
+			}
 		}
 
 		exit 0;

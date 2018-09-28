@@ -53,6 +53,12 @@ per-plugin, or using a wildcard like below:
     # default is "default" - found when you connect to the web interface - it's the term
     # in the URL - /manage/site/site_string/dashboard
 
+=head1 CAPABILITIES
+
+This plugin is a multigraph plugin by default.
+
+This plugin supports DIRTYCONFIG : L<http://guide.munin-monitoring.org/en/latest/plugin/protocol-dirtyconfig.html>
+
 =head1 DEPENDENCIES
 
 =over
@@ -236,6 +242,7 @@ foreach my $device ( sort @wlans ) {
 
 if ( defined($ARGV[0]) ) {
 	if ( $ARGV[0] eq "config" ) {
+		if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) { make_counts(); }
 		if ( $use_multigraph ) {
 			print "multigraph unifi_clients_per_network\n";
 		}
@@ -247,6 +254,7 @@ if ( defined($ARGV[0]) ) {
 		foreach my $thisNet ( @netOrderList ) {
 			print $thisNet . ".label " . $netList{$thisNet}[0] . "\n";
 		}
+		if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) { main_data(); }
 
 		if ( $use_multigraph ) {
 			foreach my $thisNet ( @netOrderList ) {
@@ -258,12 +266,42 @@ if ( defined($ARGV[0]) ) {
 					print "graph_category unifi\n";
 					print "users.label Users\n";
 					print "guests.label Guests\n";
+					if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) { sub_data($thisNet); }
 				}
 			}
 		}
 		exit 0;
     }
 } else {
+	make_counts();
+
+	if ( $use_multigraph ) {
+		print "multigraph unifi_clients_per_network\n";
+	}
+	main_data();
+	if ( $use_multigraph ) {
+		foreach my $thisNet ( @netOrderList ) {
+			if ( $netList{$thisNet}[1] == 1 ) {
+				print "multigraph unifi_clients_per_network." . $thisNet . "\n";
+				sub_data($thisNet);
+			}
+		}
+	}
+}
+
+sub main_data {
+	foreach my $thisNet ( @netOrderList ) {
+		print $thisNet . ".value " . ( $netList{$thisNet}[2] + $netList{$thisNet}[3] ) . "\n";
+	}
+}
+
+sub sub_data {
+	my $thisNet = shift;
+	print "users.value " . $netList{$thisNet}[2] . "\n";
+	print "guests.value " . $netList{$thisNet}[3] . "\n";
+}
+
+sub make_counts {
 	foreach my $client ( @{$jsonResp2->{data}} ) {
 		if ( $client->{is_wired} ) {
 			if ( $client->{is_guest} ) {
@@ -287,22 +325,6 @@ if ( defined($ARGV[0]) ) {
 				$netList{make_safe($client->{essid})}[2]++;
 				$netList{'wifi'}[2]++;
 				$netList{'user'}[2]++;
-			}
-		}
-	}
-
-	if ( $use_multigraph ) {
-		print "multigraph unifi_clients_per_network\n";
-	}
-	foreach my $thisNet ( @netOrderList ) {
-		print $thisNet . ".value " . ( $netList{$thisNet}[2] + $netList{$thisNet}[3] ) . "\n";
-	}
-	if ( $use_multigraph ) {
-		foreach my $thisNet ( @netOrderList ) {
-			if ( $netList{$thisNet}[1] == 1 ) {
-				print "multigraph unifi_clients_per_network." . $thisNet . "\n";
-				print "users.value " . $netList{$thisNet}[2] . "\n";
-				print "guests.value " . $netList{$thisNet}[3] . "\n";
 			}
 		}
 	}
