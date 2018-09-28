@@ -162,6 +162,7 @@ This is what adding all of these did to my munin processing time:
 After a week of this, I refactored every plugin to use dirtyconfig - A way of returning the config 
 and the data at the same time.  That saved a good bit of processing time:
 
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/perf_update.png" /></p>
 
 ## Pull Requests, etc.
 
