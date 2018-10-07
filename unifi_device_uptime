@@ -227,4 +227,5 @@ if ( defined($ARGV[0]) && $ARGV[0] eq "config" ) {
 	}
 }
 
-sub make_safe { $_ = shift(@_); s/\W/_/g; return lc; } #munin-node safe name
+# Make field names safe.
+sub make_safe { $_ = lc(shift(@_)); s/^[^a-z_]+/_/; s/\W/_/g; return ( $_ eq "root" ? "__root" : $_ ); }
