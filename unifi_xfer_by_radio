@@ -99,17 +99,43 @@ L<https://github.com/jtsage/unifi-munin-plugins>
 use warnings;
 use strict;
 use utf8;
+
+# Check dependancies
+my @errorCode;
+my $me = (split '/', $0)[-1];
+
+if (! eval "require JSON;" ) { 	
+	push @errorCode, "JSON module not found";
+}
+if (! eval "require WWW::Curl::Easy;" ) { 
+	push @errorCode, "WWW::Curl::Easy module not found";
+}
+
+# Provide autoconf info
+if ( defined($ARGV[0]) && $ARGV[0] eq "autoconf" ) {
+	push @errorCode, "Requires configuration";
+	print "no (", join(", " => @errorCode), ")\n";
+	exit(0);
+}
+
+# Fail on not found dependancies
+if ( @errorCode != 0 ) { 
+	die "FATAL:$me: Perl dependancies not installed (", join(", " => @errorCode), ")\n";
+}
+
 use JSON;
 use WWW::Curl::Easy;
-use Data::Dumper; # Debugging
 
-use Munin::Plugin;
-
-# Use multigraph by default
-my $use_multigraph = 1;
-
-# Allow user to override to no multigraph
-if ( defined $ENV{'multigraph'} && $ENV{'multigraph'} =~ m/no/i ) { $use_multigraph = 0; }
+# Use multigraph by default, if it's available - allow user override
+my $use_multigraph = ( $ENV{"MUNIN_CAP_MULTIGRAPH"} ) ? (
+		( defined $ENV{'multigraph'} && $ENV{'multigraph'} =~ m/no/i ) ? (
+			0 # User disabled
+		) : (
+			1 # Default Option
+		)
+	) : (
+		0 # Not Supported By Munin
+	);
 
 # Somewhat (in)sane defaults for host, pass, etc.
 #
@@ -131,29 +157,31 @@ my $APIPoint  = $APIconfig{"host"} . "/api/s/" . $APIconfig{"site"} . "/stat/dev
 my $APIData   = "{'username':'" . $APIconfig{"user"} . "', 'password':'" . $APIconfig{"pass"} . "'}";
 my $APISSLHst = ( $APIconfig{"sslh"} =~ m/no/i ) ? 0 : 2;
 my $APISSLPer = ( $APIconfig{"sslp"} =~ m/no/i ) ? 0 : 1;
-my $APIRawResp; my $ignore;
-
-# Choose a cookie file.  Make it semi-random
-my $cookie_file = "/tmp/unifi_cookie_" . $$.time;
+my $APIRawResp; my $APILogResp; my $ignore;
 
 # Init curl.
-my $curl= WWW::Curl::Easy->new() or die "curl init failed!\n";
+my $curl= WWW::Curl::Easy->new() or die "FATAL:$me: WWW::Curl::Easy init failed!\n";
 my $retcode;
 
 # Set up curl, and login to API
 $curl->setopt(CURLOPT_POST,1);
-$curl->setopt(CURLOPT_COOKIEJAR,$cookie_file);
-$curl->setopt(CURLOPT_COOKIEFILE,$cookie_file);
+$curl->setopt(CURLOPT_COOKIEFILE,"");  # Session only cookie.
 $curl->setopt(CURLOPT_SSL_VERIFYPEER, $APISSLPer);
 $curl->setopt(CURLOPT_SSL_VERIFYHOST, $APISSLHst);
 $curl->setopt(CURL_SSLVERSION_TLSv1, 1);
 $curl->setopt(CURLOPT_URL, $APILogin);
 $curl->setopt(CURLOPT_POSTFIELDS, $APIData );
-$curl->setopt(CURLOPT_WRITEDATA, \$ignore);
+$curl->setopt(CURLOPT_WRITEDATA, \$APILogResp);
 $retcode = $curl->perform;
 
 if ( $retcode != 0 ) { 
-	die "Unable to login to API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+	die "FATAL:$me: Unable to connect to API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+}
+
+my $jsonLogOBJ = new JSON or die "FATAL:$me: JSON init failed!\n";
+my $jsonLogResp = $jsonLogOBJ->allow_nonref->utf8->relaxed->decode($APILogResp);
+if ( $jsonLogResp->{"meta"}->{"rc"} ne "ok" ) {
+	die "FATAL:$me: Unable to login to API - it said: " , $jsonLogResp->{"meta"}->{"msg"} , "\n";
 }
 
 # Get some API data.
@@ -167,7 +195,7 @@ my $jsonOBJ = new JSON;
 my $jsonResp = $jsonOBJ->allow_nonref->utf8->relaxed->decode($APIRawResp);
 
 if ( $retcode != 0 ) { 
-	die "Unable to fetch data from API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+	die "FATAL:$me: Unable to fetch data from API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
 }
 
 
@@ -178,121 +206,110 @@ $curl->setopt(CURLOPT_URL, $APILogout);
 $retcode = $curl->perform;
 
 if ( $retcode != 0 ) { 
-	die "Unable to logout of API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+	die "FATAL:$me: Unable to logout of API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
 }
-
-undef($curl);
-unlink($cookie_file);
 
 # Work with the API data - grab everything we will need.
 my %devList;
 
 
-foreach my $device ( @{$jsonResp->{data}} ) {
-	my $safeDevName = make_safe($device->{name});
+foreach my $device ( @{$jsonResp->{"data"}} ) {
+	my $safeDevName = make_safe( $device->{"name"} );
 
 	my @theseRadios;
 
-	if ( $device->{type} eq "uap" ) {
+	if ( $device->{"type"} eq "uap" ) {
 		foreach my $thisRadio ( @{$device->{"radio_table_stats"}} ) {
-			my $name = $thisRadio->{name};
-			my $label = "";
-			if ( $thisRadio->{channel} < 12 ) {
-				$label = "2.4Ghz";
-			} else {
-				$label = "5Ghz";
-			}
-			push @theseRadios, [
-				$thisRadio->{name}, 
-				$label . "-" . $device->{name},
-				$device->{stat}->{$name . "-rx_packets"} + $device->{stat}->{$name . "-tx_packets"},
-				$device->{stat}->{$name . "-rx_dropped"} + $device->{stat}->{$name . "-tx_retries"} + $device->{stat}->{$name . "-tx_dropped"},
-				$device->{stat}->{$name . "-rx_errors"} + $device->{stat}->{$name . "-tx_errors"},
-				$label
-			];
+			my $name = make_safe( $thisRadio->{"name"} );
+			my $label = ( $thisRadio->{"channel"} < 12 ) ? "2.4Ghz" : "5Ghz";
+			
+			$_ = $device->{"stat"};
+
+			push @theseRadios, {
+				"name"  => $name,
+				"label" => $label . "-" . $device->{"name"},
+				"pckt"  => $_->{$name . "-rx_packets"} + $_->{$name . "-tx_packets"},
+				"dret"  => $_->{$name . "-rx_dropped"} + $_->{$name . "-tx_retries"} + $_->{$name . "-tx_dropped"},
+				"err"   => $_->{$name . "-rx_errors"}  + $_->{$name . "-tx_errors"},
+				"type"  => $label
+			};
 		}
-		$devList{$safeDevName} = [ $device->{name}, \@theseRadios ];
+		$devList{$safeDevName} = [ $device->{"name"}, \@theseRadios ];
 	}
 }
 
-if ( defined($ARGV[0]) ) {
-	if ( $ARGV[0] eq "config" ) {
-		if ( $use_multigraph ) {
-			print "multigraph unifi_xfer_per_radio\n";
-		}
-		print "graph_title Transfer per radio : " . $APIconfig{"name"} . "\n";
-		print "graph_vlabel Packets/\${graph_period}\n";
-		print "graph_category unifi\n";
-		print "graph_args --base 1000\n";
-		print "graph_info Packets per radio\n";
 
+if ( defined($ARGV[0]) && $ARGV[0] eq "config" ) {
+	if ( $use_multigraph ) {
+		print "multigraph unifi_xfer_per_radio\n";
+	}
+	print "graph_title Transfer per radio : " , $APIconfig{"name"} , "\n";
+	print "graph_vlabel Packets/\${graph_period}\n";
+	print "graph_category unifi\n";
+	print "graph_args --base 1000\n";
+	print "graph_info Packets per radio\n";
+
+	foreach my $thisDev ( sort keys %devList ) {
+		foreach my $thisRad ( @{$devList{$thisDev}[1]} ) {
+			print $thisDev , "_" , $thisRad->{"name"} , "_pack.label " , $thisRad->{"label"} , "\n";
+			print $thisDev , "_" , $thisRad->{"name"} , "_pack.type DERIVE\n";
+			print $thisDev , "_" , $thisRad->{"name"} , "_pack.min 0\n";
+			if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) {
+				print $thisDev , "_" , $thisRad->{"name"} , "_pack.value " , $thisRad->{"pckt"} , "\n";
+			}
+		}
+	}
+
+	if ( $use_multigraph ) {
 		foreach my $thisDev ( sort keys %devList ) {
-			foreach my $thisRad ( @{$devList{$thisDev}[1]} ) {
-				print $devList{$thisDev}[0] . "_" . @{$thisRad}[0] . "_pack.label " . @{$thisRad}[1] . "\n";
-				print $devList{$thisDev}[0] . "_" . @{$thisRad}[0] . "_pack.type DERIVE\n";
-				print $devList{$thisDev}[0] . "_" . @{$thisRad}[0] . "_pack.min 0\n";
+			print "multigraph unifi_xfer_per_radio." , $thisDev , "\n";
+			print "graph_title Transfer per radio : " , $devList{$thisDev}[0] , " : " , $APIconfig{"name"} , "\n";
+			print "graph_vlabel Packets/\${graph_period}\n";
+			print "graph_category unifi\n";
+			print "graph_args --base 1000\n";
+			print "graph_info Packets per radio\n";
+			foreach ( @{$devList{$thisDev}[1]} ) {
+				print $_->{"name"} , "_pkt.label " , $_->{"type"} , " Packets\n";
+				print $_->{"name"} , "_pkt.type DERIVE\n";
+				print $_->{"name"} , "_pkt.min 0\n";
+				print $_->{"name"} , "_dret.label " , $_->{"type"} , " Dropped / Retries\n";
+				print $_->{"name"} , "_dret.type DERIVE\n";
+				print $_->{"name"} , "_dret.min 0\n";
+				print $_->{"name"} , "_err.label " , $_->{"type"} , " Errors\n";
+				print $_->{"name"} , "_err.type DERIVE\n";
+				print $_->{"name"} , "_err.min 0\n";
 				if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) {
-					print $devList{$thisDev}[0] . "_" . @{$thisRad}[0] . "_pack.value " . @{$thisRad}[2] . "\n";
+					print $_->{"name"} , "_pkt.value "  , $_->{"pckt"} , "\n";
+					print $_->{"name"} , "_dret.value " , $_->{"dret"} , "\n";
+					print $_->{"name"} , "_err.value "  , $_->{"err"}  , "\n";
 				}
 			}
 		}
-
-		if ( $use_multigraph ) {
-			foreach my $thisDev ( sort keys %devList ) {
-				print "multigraph unifi_xfer_per_radio." . $thisDev . "\n";
-				print "graph_title Transfer per radio : " . $devList{$thisDev}[0] . " : " . $APIconfig{"name"} . "\n";
-				print "graph_vlabel Packets/\${graph_period}\n";
-				print "graph_category unifi\n";
-				print "graph_args --base 1000\n";
-				print "graph_info Packets per radio\n";
-				foreach my $thisRad ( @{$devList{$thisDev}[1]} ) {
-					print @{$thisRad}[0] . "_pkt.label " . @{$thisRad}[5] . " Packets\n";
-					print @{$thisRad}[0] . "_pkt.type DERIVE\n";
-					print @{$thisRad}[0] . "_pkt.min 0\n";
-					print @{$thisRad}[0] . "_dret.label " . @{$thisRad}[5] . " Dropped / Retries\n";
-					print @{$thisRad}[0] . "_dret.type DERIVE\n";
-					print @{$thisRad}[0] . "_dret.min 0\n";
-					print @{$thisRad}[0] . "_err.label " . @{$thisRad}[5] . " Errors\n";
-					print @{$thisRad}[0] . "_err.type DERIVE\n";
-					print @{$thisRad}[0] . "_err.min 0\n";
-					if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) {
-						print @{$thisRad}[0] . "_pkt.value " . @{$thisRad}[2] . "\n";
-						print @{$thisRad}[0] . "_dret.value " . @{$thisRad}[3] . "\n";
-						print @{$thisRad}[0] . "_err.value " . @{$thisRad}[4] . "\n";
-					}
-				}
-			}
-		}
-		exit 0;
-    }
+	}
+	exit 0;
+    
 } else {
 	if ( $use_multigraph ) {
 		print "multigraph unifi_xfer_per_radio\n";
 	}
 
 	foreach my $thisDev ( sort keys %devList ) {
-		foreach my $thisRad ( @{$devList{$thisDev}[1]} ) {
-			print $devList{$thisDev}[0] . "_" . @{$thisRad}[0] . "_pack.value " . @{$thisRad}[2] . "\n";
+		foreach ( @{$devList{$thisDev}[1]} ) {
+			print $thisDev , "_" , $_->{"name"} , "_pack.value " , $_->{"pckt"} , "\n";
 		}
 	}
 
 	if ( $use_multigraph ) {
 		foreach my $thisDev ( sort keys %devList ) {
 			print "multigraph unifi_xfer_per_radio." . $thisDev . "\n";
-			foreach my $thisRad ( @{$devList{$thisDev}[1]} ) {
-				print @{$thisRad}[0] . "_pkt.value " . @{$thisRad}[2] . "\n";
-				print @{$thisRad}[0] . "_dret.value " . @{$thisRad}[3] . "\n";
-				print @{$thisRad}[0] . "_err.value " . @{$thisRad}[4] . "\n";
+			foreach ( @{$devList{$thisDev}[1]} ) {
+				print $_->{"name"} , "_pkt.value "  , $_->{"pckt"} , "\n";
+				print $_->{"name"} , "_dret.value " , $_->{"dret"} , "\n";
+				print $_->{"name"} , "_err.value "  , $_->{"err"}  , "\n";
 			}
 		}
 	}
 }
 
-sub make_safe {
-	# Make a munin-node safe version of the names
-	my $retty = $_[0];
-	$retty =~ s/[^A-Za-z0-9]/_/g;
-	return lc($retty);
-}
-
-
+# Make field names safe.
+sub make_safe { $_ = lc(shift(@_)); s/^[^a-z_]+/_/; s/\W/_/g; return ( $_ eq "root" ? "__root" : $_ ); }
