@@ -250,12 +250,12 @@ if ( defined($ARGV[0]) && $ARGV[0] eq "config" ) {
 	print "graph_info Packets per radio\n";
 
 	foreach my $thisDev ( sort keys %devList ) {
-		foreach my $thisRad ( @{$devList{$thisDev}[1]} ) {
-			print $thisDev , "_" , $thisRad->{"name"} , "_pack.label " , $thisRad->{"label"} , "\n";
-			print $thisDev , "_" , $thisRad->{"name"} , "_pack.type DERIVE\n";
-			print $thisDev , "_" , $thisRad->{"name"} , "_pack.min 0\n";
+		foreach ( @{$devList{$thisDev}[1]} ) {
+			print $thisDev , "_" , $_->{"name"} , "_pack.label " , $_->{"label"} , "\n";
+			print $thisDev , "_" , $_->{"name"} , "_pack.type DERIVE\n";
+			print $thisDev , "_" , $_->{"name"} , "_pack.min 0\n";
 			if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) {
-				print $thisDev , "_" , $thisRad->{"name"} , "_pack.value " , $thisRad->{"pckt"} , "\n";
+				print $thisDev , "_" , $_->{"name"} , "_pack.value " , $_->{"pckt"} , "\n";
 			}
 		}
 	}
