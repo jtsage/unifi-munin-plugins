@@ -92,28 +92,51 @@ L<https://github.com/jtsage/unifi-munin-plugins>
 =head1 MAGICK MARKERS
 
   #%# family=manual
-  #%# capabilities=
+  #%# capabilities=autoconf
 
 =cut
 
 use warnings;
 use strict;
 use utf8;
-use JSON;
-use WWW::Curl::Easy;
-# use Data::Dumper; # Debugging
 
-use Munin::Plugin;
+# Check dependancies
+my @errorCode;
+my $me = (split '/', $0)[-1];
 
-# Use multigraph by default
-my $use_multigraph = 1;
+if (! eval {require JSON; JSON->import(); 1; } ) {
+	push @errorCode, "JSON module not found";
+}
+if (! eval {require WWW::Curl::Easy; 1;} ) {
+	push @errorCode, "WWW::Curl::Easy module not found";
+}
 
-# Allow user to override to no multigraph
-if ( defined $ENV{'multigraph'} && $ENV{'multigraph'} =~ m/no/i ) { $use_multigraph = 0; }
+# Provide autoconf info
+if ( defined($ARGV[0]) && $ARGV[0] eq "autoconf" ) {
+	push @errorCode, "Requires configuration";
+	print "no (", join(", " => @errorCode), ")\n";
+	exit(0);
+}
 
-# Somewhat (in)sane defaults for host, pass, etc.
+# Fail on not found dependancies
+if ( @errorCode != 0 ) {
+	die "FATAL:$me: Perl dependancies not installed (", join(", " => @errorCode), ")\n";
+}
+
+# Use multigraph by default, if it's available - allow user override
+my $use_multigraph = ( $ENV{"MUNIN_CAP_MULTIGRAPH"} ) ? (
+		( defined $ENV{'multigraph'} && $ENV{'multigraph'} =~ m/no/i ) ? (
+			0 # User disabled
+		) : (
+			1 # Default Option
+		)
+	) : (
+		0 # Not Supported By Munin
+	);
+
+# Somewhat (in)sane defaults for host, pass, etc
 #
-# Note: SSL checking might not work.  My test rig does not.
+# Note: SSL checking might not work.  My test rig does not
 my %APIconfig = (
 	"user"     => (( defined $ENV{'user'} ) ? $ENV{'user'} : "ubnt"),
 	"pass"     => (( defined $ENV{'pass'} ) ? $ENV{'pass'} : "ubnt"),
@@ -131,137 +154,132 @@ my $APIPoint  = $APIconfig{"host"} . "/api/s/" . $APIconfig{"site"} . "/stat/dev
 my $APIData   = "{'username':'" . $APIconfig{"user"} . "', 'password':'" . $APIconfig{"pass"} . "'}";
 my $APISSLHst = ( $APIconfig{"sslh"} =~ m/no/i ) ? 0 : 2;
 my $APISSLPer = ( $APIconfig{"sslp"} =~ m/no/i ) ? 0 : 1;
-my $APIRawResp; my $ignore;
-
-# Choose a cookie file.  Make it semi-random
-my $cookie_file = "/tmp/unifi_cookie_" . $$.time;
+my $APIRawResp; my $APILogResp; my $ignore;
 
 # Init curl.
-my $curl= WWW::Curl::Easy->new() or die "curl init failed!\n";
+my $curl = WWW::Curl::Easy->new() or die "FATAL:$me: WWW::Curl::Easy init failed!\n";
 my $retcode;
 
 # Set up curl, and login to API
-$curl->setopt(CURLOPT_POST,1);
-$curl->setopt(CURLOPT_COOKIEJAR,$cookie_file);
-$curl->setopt(CURLOPT_COOKIEFILE,$cookie_file);
-$curl->setopt(CURLOPT_SSL_VERIFYPEER, $APISSLPer);
-$curl->setopt(CURLOPT_SSL_VERIFYHOST, $APISSLHst);
-$curl->setopt(CURL_SSLVERSION_TLSv1, 1);
-$curl->setopt(CURLOPT_URL, $APILogin);
-$curl->setopt(CURLOPT_POSTFIELDS, $APIData );
-$curl->setopt(CURLOPT_WRITEDATA, \$ignore);
+$curl->setopt($curl->CURLOPT_POST,1);
+$curl->setopt($curl->CURLOPT_COOKIEFILE,"");  # Session only cookie
+$curl->setopt($curl->CURLOPT_SSL_VERIFYPEER, $APISSLPer);
+$curl->setopt($curl->CURLOPT_SSL_VERIFYHOST, $APISSLHst);
+$curl->setopt($curl->CURL_SSLVERSION_TLSv1, 1);
+$curl->setopt($curl->CURLOPT_URL, $APILogin);
+$curl->setopt($curl->CURLOPT_POSTFIELDS, $APIData );
+$curl->setopt($curl->CURLOPT_WRITEDATA, \$APILogResp);
 $retcode = $curl->perform;
 
-if ( $retcode != 0 ) { 
-	die "Unable to login to API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+if ( $retcode != 0 ) {
+	die "FATAL:$me: Unable to connect to API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+}
+
+my $jsonLogOBJ = JSON->new() or die "FATAL:$me: JSON init failed!\n";
+my $jsonLogResp = $jsonLogOBJ->allow_nonref->utf8->relaxed->decode($APILogResp);
+if ( $jsonLogResp->{"meta"}->{"rc"} ne "ok" ) {
+	die "FATAL:$me: Unable to login to API - it said: " , $jsonLogResp->{"meta"}->{"msg"} , "\n";
 }
 
 # Get some API data.
-$curl->setopt(CURLOPT_HTTPGET,1);
-$curl->setopt(CURLOPT_WRITEDATA, \$APIRawResp);
-$curl->setopt(CURLOPT_URL, $APIPoint);
+$curl->setopt($curl->CURLOPT_HTTPGET,1);
+$curl->setopt($curl->CURLOPT_WRITEDATA, \$APIRawResp);
+$curl->setopt($curl->CURLOPT_URL, $APIPoint);
 $retcode = $curl->perform;
 
 # Decode response
-my $jsonOBJ = new JSON;
+my $jsonOBJ = JSON->new() or die "FATAL:$me: JSON init failed!\n";
 my $jsonResp = $jsonOBJ->allow_nonref->utf8->relaxed->decode($APIRawResp);
 
-if ( $retcode != 0 ) { 
-	die "Unable to fetch data from API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+if ( $retcode != 0 ) {
+	die "FATAL:$me: Unable to fetch data from API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
 }
 
 
 # Log back out. (Should invalidate our cookie file, just in case)
-$curl->setopt(CURLOPT_HTTPGET,1);
-$curl->setopt(CURLOPT_WRITEDATA, \$ignore);
-$curl->setopt(CURLOPT_URL, $APILogout);
+$curl->setopt($curl->CURLOPT_HTTPGET,1);
+$curl->setopt($curl->CURLOPT_WRITEDATA, \$ignore);
+$curl->setopt($curl->CURLOPT_URL, $APILogout);
 $retcode = $curl->perform;
 
-if ( $retcode != 0 ) { 
-	die "Unable to logout of API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+if ( $retcode != 0 ) {
+	die "FATAL:$me: Unable to logout of API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
 }
-
-undef($curl);
-unlink($cookie_file);
 
 # Work with the API data - grab everything we will need.
 my %netList;
 
-foreach my $device ( @{$jsonResp->{data}} ) {
-	$netList{make_safe($device->{name})} = [$device->{name}, $device->{"rx_bytes"}, $device->{"tx_bytes"} ];
+foreach ( @{$jsonResp->{"data"}} ) {
+	$netList{make_safe($_->{"name"})} = {
+		"label" => $_->{"name"},
+		"rx"    => $_->{"rx_bytes"},
+		"tx"    => $_->{"tx_bytes"}
+	};
 }
 
 
-if ( defined($ARGV[0]) ) {
-	if ( $ARGV[0] eq "config" ) {
-		if ( $use_multigraph ) {
-			print "multigraph unifi_xfer_per_device\n";
-		}
-		print "graph_title Transfer per device : " . $APIconfig{"name"} . "\n";
-		print "graph_vlabel Bytes/\${graph_period} rcvd (-) / trans (+)\n";
-		print "graph_category unifi\n";
-		print "graph_args --base 1000\n";
-		print "graph_info Bytes transfered per device\n";
+if ( defined($ARGV[0]) && $ARGV[0] eq "config" ) {
+	if ( $use_multigraph ) {
+		print "multigraph unifi_xfer_per_device\n";
+	}
+	print "graph_title Transfer per device : " , $APIconfig{"name"} , "\n";
+	print "graph_vlabel Bytes/\${graph_period} rcvd (-) / trans (+)\n";
+	print "graph_category unifi\n";
+	print "graph_args --base 1000\n";
+	print "graph_info Bytes transfered per device\n";
 
+	foreach my $thisNet ( sort keys %netList ) {
+		foreach ( "_rxbytes", "_txbytes" ) {
+			print $thisNet , $_ , ".label " , $netList{$thisNet}->{"label"} , "\n";
+			print $thisNet , $_ , ".type DERIVE\n";
+			print $thisNet , $_ , ".min 0\n";
+		}
+		print $thisNet , "_rxbytes.graph no\n";
+		print $thisNet , "_txbytes.negative " , $thisNet , "_rxbytes\n";
+		if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) {
+			print $thisNet , "_rxbytes.value " , $netList{$thisNet}->{"rx"} , "\n";
+			print $thisNet , "_txbytes.value " , $netList{$thisNet}->{"tx"} , "\n";
+		}
+	}
+
+	if ( $use_multigraph ) {
 		foreach my $thisNet ( sort keys %netList ) {
-			foreach my $term ( "_rxbytes", "_txbytes" ) {
-				print $thisNet . $term . ".label " . $netList{$thisNet}[0] . "\n";
-				print $thisNet . $term . ".type DERIVE\n";
-				print $thisNet . $term . ".min 0\n";
+			print "multigraph unifi_xfer_per_device." , $thisNet , "\n";
+			print "graph_title Transfer / device : " , $netList{$thisNet}->{"label"} , " : " , $APIconfig{"name"} , "\n";
+			print "graph_vlabel Bytes/\${graph_period} rcvd (-) / trans (+)\n";
+			print "graph_category unifi\n";
+			print "graph_args --base 1000\n";
+			foreach ( "rxbyte", "txbyte" ) {
+				print $_ , ".label Bytes\n";
+				print $_ , ".type DERIVE\n";
+				print $_ , ".min 0\n";
 			}
-			print $thisNet . "_rxbytes.graph no\n";
-			print $thisNet . "_txbytes.negative " . $thisNet . "_rxbytes\n";
+			print "rxbyte.graph no\n";
+			print "txbyte.negative rxbyte\n";
 			if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) {
-				print $thisNet . "_rxbytes.value " . $netList{$thisNet}[1] . "\n";
-				print $thisNet . "_txbytes.value " . $netList{$thisNet}[2] . "\n";
+				print "rxbyte.value " , $netList{$thisNet}->{"rx"} , "\n";
+				print "txbyte.value " , $netList{$thisNet}->{"tx"} , "\n";
 			}
 		}
+	}
+	exit 0;
 
-		if ( $use_multigraph ) {
-			foreach my $thisNet ( sort keys %netList ) {
-				print "multigraph unifi_xfer_per_device." . $thisNet . "\n";
-				print "graph_title Transfer per device : " . $netList{$thisNet}[0] . ": " . $APIconfig{"name"} . "\n";
-				print "graph_vlabel Bytes/\${graph_period} rcvd (-) / trans (+)\n";
-				print "graph_category unifi\n";
-				print "graph_args --base 1000\n";
-				foreach my $term ( "rxbyte", "txbyte" ) {
-					print $term . ".label " . $netList{$thisNet}[0] . "\n";
-					print $term . ".type DERIVE\n";
-					print $term . ".min 0\n";
-				}
-				print "rxbyte.graph no\n";
-				print "txbyte.negative rxbyte\n";
-				if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) {
-					print "rxbyte.value " . $netList{$thisNet}[1] . "\n";
-					print "txbyte.value " . $netList{$thisNet}[2] . "\n";
-				}
-			}
-		}
-		exit 0;
-    }
 } else {
 	if ( $use_multigraph ) {
 		print "multigraph unifi_xfer_per_device\n";
 	}
-	foreach my $thisNet ( sort keys %netList ) {
-		print $thisNet . "_rxbytes.value " . $netList{$thisNet}[1] . "\n";
-		print $thisNet . "_txbytes.value " . $netList{$thisNet}[2] . "\n";
+	foreach ( sort keys %netList ) {
+		print $_ . "_rxbytes.value " . $netList{$_}->{"rx"} , "\n";
+		print $_ . "_txbytes.value " . $netList{$_}->{"tx"} , "\n";
 	}
 	if ( $use_multigraph ) {
-		foreach my $thisNet ( sort keys %netList ) {
-			print "multigraph unifi_xfer_per_device." . $thisNet . "\n";
-			print "rxbyte.value " . $netList{$thisNet}[1] . "\n";
-			print "txbyte.value " . $netList{$thisNet}[2] . "\n";
+		foreach ( sort keys %netList ) {
+			print "multigraph unifi_xfer_per_device." , $_ , "\n";
+			print "rxbyte.value " , $netList{$_}->{"rx"} , "\n";
+			print "txbyte.value " , $netList{$_}->{"tx"} , "\n";
 		}
 	}
 }
 
-
-sub make_safe {
-	# Make a munin-node safe version of the names
-	my $retty = $_[0];
-	$retty =~ s/[^A-Za-z0-9]/_/g;
-	return lc($retty);
-}
-
-
+# Make field names safe.
+sub make_safe { $_ = lc($_[0]); s/^[^a-z_]+/_/; s/\W/_/g; return ( $_ eq "root" ? "__root" : $_ ); }

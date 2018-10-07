@@ -99,17 +99,40 @@ L<https://github.com/jtsage/unifi-munin-plugins>
 use warnings;
 use strict;
 use utf8;
-use JSON;
-use WWW::Curl::Easy;
-# use Data::Dumper; # Debugging
 
-use Munin::Plugin;
+# Check dependancies
+my @errorCode;
+my $me = (split '/', $0)[-1];
 
-# Use multigraph by default
-my $use_multigraph = 1;
+if (! eval {require JSON; JSON->import(); 1; } ) {
+	push @errorCode, "JSON module not found";
+}
+if (! eval {require WWW::Curl::Easy; 1;} ) {
+	push @errorCode, "WWW::Curl::Easy module not found";
+}
 
-# Allow user to override to no multigraph
-if ( defined $ENV{'multigraph'} && $ENV{'multigraph'} =~ m/no/i ) { $use_multigraph = 0; }
+# Provide autoconf info
+if ( defined($ARGV[0]) && $ARGV[0] eq "autoconf" ) {
+	push @errorCode, "Requires configuration";
+	print "no (", join(", " => @errorCode), ")\n";
+	exit(0);
+}
+
+# Fail on not found dependancies
+if ( @errorCode != 0 ) {
+	die "FATAL:$me: Perl dependancies not installed (", join(", " => @errorCode), ")\n";
+}
+
+# Use multigraph by default, if it's available - allow user override
+my $use_multigraph = ( $ENV{"MUNIN_CAP_MULTIGRAPH"} ) ? (
+		( defined $ENV{'multigraph'} && $ENV{'multigraph'} =~ m/no/i ) ? (
+			0 # User disabled
+		) : (
+			1 # Default Option
+		)
+	) : (
+		0 # Not Supported By Munin
+	);
 
 # Somewhat (in)sane defaults for host, pass, etc.
 #
@@ -131,124 +154,122 @@ my $APIPoint  = $APIconfig{"host"} . "/api/s/" . $APIconfig{"site"} . "/stat/dev
 my $APIData   = "{'username':'" . $APIconfig{"user"} . "', 'password':'" . $APIconfig{"pass"} . "'}";
 my $APISSLHst = ( $APIconfig{"sslh"} =~ m/no/i ) ? 0 : 2;
 my $APISSLPer = ( $APIconfig{"sslp"} =~ m/no/i ) ? 0 : 1;
-my $APIRawResp; my $ignore;
-
-# Choose a cookie file.  Make it semi-random
-my $cookie_file = "/tmp/unifi_cookie_" . $$.time;
+my $APIRawResp; my $APILogResp; my $ignore;
 
 # Init curl.
-my $curl= WWW::Curl::Easy->new() or die "curl init failed!\n";
+my $curl = WWW::Curl::Easy->new() or die "FATAL:$me: WWW::Curl::Easy init failed!\n";
 my $retcode;
 
 # Set up curl, and login to API
-$curl->setopt(CURLOPT_POST,1);
-$curl->setopt(CURLOPT_COOKIEJAR,$cookie_file);
-$curl->setopt(CURLOPT_COOKIEFILE,$cookie_file);
-$curl->setopt(CURLOPT_SSL_VERIFYPEER, $APISSLPer);
-$curl->setopt(CURLOPT_SSL_VERIFYHOST, $APISSLHst);
-$curl->setopt(CURL_SSLVERSION_TLSv1, 1);
-$curl->setopt(CURLOPT_URL, $APILogin);
-$curl->setopt(CURLOPT_POSTFIELDS, $APIData );
-$curl->setopt(CURLOPT_WRITEDATA, \$ignore);
+$curl->setopt($curl->CURLOPT_POST,1);
+$curl->setopt($curl->CURLOPT_COOKIEFILE,"");  # Session only cookie
+$curl->setopt($curl->CURLOPT_SSL_VERIFYPEER, $APISSLPer);
+$curl->setopt($curl->CURLOPT_SSL_VERIFYHOST, $APISSLHst);
+$curl->setopt($curl->CURL_SSLVERSION_TLSv1, 1);
+$curl->setopt($curl->CURLOPT_URL, $APILogin);
+$curl->setopt($curl->CURLOPT_POSTFIELDS, $APIData );
+$curl->setopt($curl->CURLOPT_WRITEDATA, \$APILogResp);
 $retcode = $curl->perform;
 
-if ( $retcode != 0 ) { 
-	die "Unable to login to API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+if ( $retcode != 0 ) {
+	die "FATAL:$me: Unable to connect to API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+}
+
+my $jsonLogOBJ = JSON->new() or die "FATAL:$me: JSON init failed!\n";
+my $jsonLogResp = $jsonLogOBJ->allow_nonref->utf8->relaxed->decode($APILogResp);
+if ( $jsonLogResp->{"meta"}->{"rc"} ne "ok" ) {
+	die "FATAL:$me: Unable to login to API - it said: " , $jsonLogResp->{"meta"}->{"msg"} , "\n";
 }
 
 # Get some API data.
-$curl->setopt(CURLOPT_HTTPGET,1);
-$curl->setopt(CURLOPT_WRITEDATA, \$APIRawResp);
-$curl->setopt(CURLOPT_URL, $APIPoint);
+$curl->setopt($curl->CURLOPT_HTTPGET,1);
+$curl->setopt($curl->CURLOPT_WRITEDATA, \$APIRawResp);
+$curl->setopt($curl->CURLOPT_URL, $APIPoint);
 $retcode = $curl->perform;
 
 # Decode response
-my $jsonOBJ = new JSON;
+my $jsonOBJ = JSON->new() or die "FATAL:$me: JSON init failed!\n";
 my $jsonResp = $jsonOBJ->allow_nonref->utf8->relaxed->decode($APIRawResp);
 
-if ( $retcode != 0 ) { 
-	die "Unable to fetch data from API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+if ( $retcode != 0 ) {
+	die "FATAL:$me: Unable to fetch data from API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
 }
 
 
 # Log back out. (Should invalidate our cookie file, just in case)
-$curl->setopt(CURLOPT_HTTPGET,1);
-$curl->setopt(CURLOPT_WRITEDATA, \$ignore);
-$curl->setopt(CURLOPT_URL, $APILogout);
+$curl->setopt($curl->CURLOPT_HTTPGET,1);
+$curl->setopt($curl->CURLOPT_WRITEDATA, \$ignore);
+$curl->setopt($curl->CURLOPT_URL, $APILogout);
 $retcode = $curl->perform;
 
-if ( $retcode != 0 ) { 
-	die "Unable to logout of API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+if ( $retcode != 0 ) {
+	die "FATAL:$me: Unable to logout of API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
 }
-
-undef($curl);
-unlink($cookie_file);
 
 # Work with the API data - grab everything we will need.
 my %devList;
 
-foreach my $device ( @{$jsonResp->{data}} ) {
-	$devList{make_safe($device->{name})} = [$device->{name}, ($device->{"user-num_sta"} || 0), ($device->{"guest-num_sta"} || 0) ];
+foreach ( @{$jsonResp->{"data"}} ) {
+	$devList{make_safe($_->{"name"})} = {
+		"label" => $_->{"name"},
+		"user"  => ($_->{"user-num_sta"} || 0),
+		"guest" => ($_->{"guest-num_sta"} || 0)
+	};
 }
 
-if ( defined($ARGV[0]) ) {
-	if ( $ARGV[0] eq "config" ) {
-		if ( $use_multigraph ) {
-			print "multigraph unifi_clients_per_device\n";
-		}
-		print "graph_title Clients Connected / Device : " . $APIconfig{"name"} . "\n";
-		print "graph_args -l 0 --base 1000\n";
-		print "graph_vlabel clients\n";
-		print "graph_category unifi\n";
+if ( defined($ARGV[0]) && $ARGV[0] eq "config" ) {
+	if ( $use_multigraph ) {
+		print "multigraph unifi_clients_per_device\n";
+	}
+	print "graph_title Clients Connected / Device : " , $APIconfig{"name"} , "\n";
+	print "graph_args -l 0 --base 1000\n";
+	print "graph_vlabel clients\n";
+	print "graph_category unifi\n";
 
-		foreach my $thisDev ( sort keys %devList ) {
-			print $thisDev . ".label " . $devList{$thisDev}[0] . "\n";
-		}
-		if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) { main_data(); }
+	foreach ( sort keys %devList ) {
+		print $_ , ".label " , $devList{$_}->{"label"} , "\n";
+	}
+	if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) { main_data(); }
 
-		if ( $use_multigraph ) {
-			foreach my $thisDev ( sort keys %devList ) {
-				print "multigraph unifi_clients_per_device." . $thisDev . "\n";
-				print "graph_title Clients Connected: " . $devList{$thisDev}[0] . ": " . $APIconfig{"name"} . "\n";
-				print "graph_args -l 0 --base 1000\n";
-				print "graph_vlabel connected\n";
-				print "graph_category unifi\n";
-				print "users.label Users\n";
-				print "guests.label Guests\n";
-				if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) { sub_data($thisDev); }
-			}
+	if ( $use_multigraph ) {
+		foreach ( sort keys %devList ) {
+			print "multigraph unifi_clients_per_device." , $_ , "\n";
+			print "graph_title Clients / Device : " , $devList{$_}->{"label"} , " : " , $APIconfig{"name"} , "\n";
+			print "graph_args -l 0 --base 1000\n";
+			print "graph_vlabel connected\n";
+			print "graph_category unifi\n";
+			print "users.label Users\n";
+			print "guests.label Guests\n";
+			if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) { sub_data($_); }
 		}
-		exit 0;
-    }
+	}
+	exit 0;
+
 } else {
 	if ( $use_multigraph ) {
 		print "multigraph unifi_clients_per_device\n";
 	}
 	main_data();
 	if ( $use_multigraph ) {
-		foreach my $thisDev ( sort keys %devList ) {
-			print "multigraph unifi_clients_per_device." . $thisDev . "\n";
-			sub_data($thisDev);
+		foreach ( sort keys %devList ) {
+			print "multigraph unifi_clients_per_device." , $_ , "\n";
+			sub_data($_);
 		}
 	}
 }
 
 sub main_data {
-	foreach my $thisDev ( sort keys %devList ) {
-		print $thisDev . ".value " . ( $devList{$thisDev}[1] + $devList{$thisDev}[2] ) . "\n";
+	foreach ( sort keys %devList ) {
+		print $_ , ".value " , ( $devList{$_}->{"user"} + $devList{$_}->{"guest"} ) , "\n";
 	}
+	return 1;
 }
+
 sub sub_data {
-	my $thisDev = shift;
-	print "users.value " . $devList{$thisDev}[1] . "\n";
-	print "guests.value " . $devList{$thisDev}[2] . "\n";
+	print "users.value "  , $devList{$_[0]}->{"user"}  , "\n";
+	print "guests.value " , $devList{$_[0]}->{"guest"} , "\n";
+	return 1;
 }
 
-sub make_safe {
-	# Make a munin-node safe version of the names
-	my $retty = $_[0];
-	$retty =~ s/[^A-Za-z0-9]/_/g;
-	return lc($retty);
-}
-
-
+# Make field names safe.
+sub make_safe { $_ = lc($_[0]); s/^[^a-z_]+/_/; s/\W/_/g; return ( $_ eq "root" ? "__root" : $_ ); }

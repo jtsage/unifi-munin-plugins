@@ -91,10 +91,10 @@ use utf8;
 my @errorCode;
 my $me = (split '/', $0)[-1];
 
-if (! eval "require JSON;" ) { 	
+if (! eval {require JSON; JSON->import(); 1; } ) {
 	push @errorCode, "JSON module not found";
 }
-if (! eval "require WWW::Curl::Easy;" ) { 
+if (! eval {require WWW::Curl::Easy; 1;} ) {
 	push @errorCode, "WWW::Curl::Easy module not found";
 }
 
@@ -106,12 +106,9 @@ if ( defined($ARGV[0]) && $ARGV[0] eq "autoconf" ) {
 }
 
 # Fail on not found dependancies
-if ( @errorCode != 0 ) { 
+if ( @errorCode != 0 ) {
 	die "FATAL:$me: Perl dependancies not installed (", join(", " => @errorCode), ")\n";
 }
-
-use JSON;
-use WWW::Curl::Easy;
 
 # Somewhat (in)sane defaults for host, pass, etc.
 #
@@ -136,52 +133,52 @@ my $APISSLPer = ( $APIconfig{"sslp"} =~ m/no/i ) ? 0 : 1;
 my $APIRawResp; my $APILogResp; my $ignore;
 
 # Init curl.
-my $curl= WWW::Curl::Easy->new() or die "FATAL:$me: WWW::Curl::Easy init failed!\n";
+my $curl = WWW::Curl::Easy->new() or die "FATAL:$me: WWW::Curl::Easy init failed!\n";
 my $retcode;
 
 # Set up curl, and login to API
-$curl->setopt(CURLOPT_POST,1);
-$curl->setopt(CURLOPT_COOKIEFILE,"");  # Session only cookie.
-$curl->setopt(CURLOPT_SSL_VERIFYPEER, $APISSLPer);
-$curl->setopt(CURLOPT_SSL_VERIFYHOST, $APISSLHst);
-$curl->setopt(CURL_SSLVERSION_TLSv1, 1);
-$curl->setopt(CURLOPT_URL, $APILogin);
-$curl->setopt(CURLOPT_POSTFIELDS, $APIData );
-$curl->setopt(CURLOPT_WRITEDATA, \$APILogResp);
+$curl->setopt($curl->CURLOPT_POST,1);
+$curl->setopt($curl->CURLOPT_COOKIEFILE,"");  # Session only cookie.
+$curl->setopt($curl->CURLOPT_SSL_VERIFYPEER, $APISSLPer);
+$curl->setopt($curl->CURLOPT_SSL_VERIFYHOST, $APISSLHst);
+$curl->setopt($curl->CURL_SSLVERSION_TLSv1, 1);
+$curl->setopt($curl->CURLOPT_URL, $APILogin);
+$curl->setopt($curl->CURLOPT_POSTFIELDS, $APIData );
+$curl->setopt($curl->CURLOPT_WRITEDATA, \$APILogResp);
 $retcode = $curl->perform;
 
-if ( $retcode != 0 ) { 
+if ( $retcode != 0 ) {
 	die "FATAL:$me: Unable to connect to API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
 }
 
-my $jsonLogOBJ = new JSON or die "FATAL:$me: JSON init failed!\n";
+my $jsonLogOBJ = JSON->new() or die "FATAL:$me: JSON init failed!\n";
 my $jsonLogResp = $jsonLogOBJ->allow_nonref->utf8->relaxed->decode($APILogResp);
 if ( $jsonLogResp->{"meta"}->{"rc"} ne "ok" ) {
 	die "FATAL:$me: Unable to login to API - it said: " , $jsonLogResp->{"meta"}->{"msg"} , "\n";
 }
 
 # Get some API data.
-$curl->setopt(CURLOPT_HTTPGET,1);
-$curl->setopt(CURLOPT_WRITEDATA, \$APIRawResp);
-$curl->setopt(CURLOPT_URL, $APIPoint);
+$curl->setopt($curl->CURLOPT_HTTPGET,1);
+$curl->setopt($curl->CURLOPT_WRITEDATA, \$APIRawResp);
+$curl->setopt($curl->CURLOPT_URL, $APIPoint);
 $retcode = $curl->perform;
 
 # Decode response
-my $jsonOBJ = new JSON;
+my $jsonOBJ = JSON->new() or die "FATAL:$me: JSON init failed!\n";
 my $jsonResp = $jsonOBJ->allow_nonref->utf8->relaxed->decode($APIRawResp);
 
-if ( $retcode != 0 ) { 
+if ( $retcode != 0 ) {
 	die "FATAL:$me: Unable to fetch data from API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
 }
 
 
 # Log back out. (Should invalidate our cookie file, just in case)
-$curl->setopt(CURLOPT_HTTPGET,1);
-$curl->setopt(CURLOPT_WRITEDATA, \$ignore);
-$curl->setopt(CURLOPT_URL, $APILogout);
+$curl->setopt($curl->CURLOPT_HTTPGET,1);
+$curl->setopt($curl->CURLOPT_WRITEDATA, \$ignore);
+$curl->setopt($curl->CURLOPT_URL, $APILogout);
 $retcode = $curl->perform;
 
-if ( $retcode != 0 ) { 
+if ( $retcode != 0 ) {
 	die "FATAL:$me: Unable to logout of API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
 }
 
@@ -245,4 +242,4 @@ if ( defined($ARGV[0]) && $ARGV[0] eq "config" ) {
 
 
 # Make field names safe.
-sub make_safe { $_ = lc(shift(@_)); s/^[^a-z_]+/_/; s/\W/_/g; return ( $_ eq "root" ? "__root" : $_ ); }
+sub make_safe { $_ = lc($_[0]); s/^[^a-z_]+/_/; s/\W/_/g; return ( $_ eq "root" ? "__root" : $_ ); }
