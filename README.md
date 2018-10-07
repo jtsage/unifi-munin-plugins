@@ -14,14 +14,14 @@ A couple of munin plugins for UniFi gear - All written in 100% perl
  
  Display a count of clients connected per unifi device (physical device)
  
-<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_clients_by_device.png" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/example-graphs/unifi_clients_by_device.png" /></p>
 
 
 ### unifi\_clients\_by\_type _(multigraph)_
  
  Display a count of clients grouped by how they are connected (wired/wireless, user/guest, SSID)
 
-<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_clients_by_network.png" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/example-graphs/unifi_clients_by_network.png" /></p>
 
  
 
@@ -29,7 +29,7 @@ A couple of munin plugins for UniFi gear - All written in 100% perl
  
  Display CPU usage on each unifi device
  
-<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_device_cpu.png" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/example-graphs/unifi_device_cpu.png" /></p>
 
 
 
@@ -37,7 +37,7 @@ A couple of munin plugins for UniFi gear - All written in 100% perl
 
  Display the load average on each unifi device
  
-<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_device_load.png" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/example-graphs/unifi_device_load.png" /></p>
 
 
 
@@ -45,7 +45,7 @@ A couple of munin plugins for UniFi gear - All written in 100% perl
  
  Display the memory usage on each unifi device
 
-<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_device_mem.png" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/example-graphs/unifi_device_mem.png" /></p>
 
 
 
@@ -53,7 +53,7 @@ A couple of munin plugins for UniFi gear - All written in 100% perl
  
  Display the uptime of each unifi device, in days
 
-<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_device_uptime.png" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/example-graphs/unifi_device_uptime.png" /></p>
 
 
 
@@ -61,7 +61,7 @@ A couple of munin plugins for UniFi gear - All written in 100% perl
  
  Display transfer statistics on a per unifi device basis
 
-<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_xfer_by_device.png" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/example-graphs/unifi_xfer_by_device.png" /></p>
 
 
 
@@ -71,7 +71,7 @@ A couple of munin plugins for UniFi gear - All written in 100% perl
  than one firewall device on a "site", this plugin will almost certainly shit the bed.  I don't know 
  if this is a use case that can/should exist, but I didn't plan for it.
 
-<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_xfer_by_network.png" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/example-graphs/unifi_xfer_by_network.png" /></p>
 
 
 
@@ -79,7 +79,7 @@ A couple of munin plugins for UniFi gear - All written in 100% perl
  
  Display transfer statistics per physical network port (Switches only)
 
-<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_xfer_by_port.png" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/example-graphs/unifi_xfer_by_port.png" /></p>
 
 
 
@@ -87,7 +87,7 @@ A couple of munin plugins for UniFi gear - All written in 100% perl
  
  Display transfer statistics per physical radio (APs only)
 
-<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_xfer_by_radio.png" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/example-graphs/unifi_xfer_by_radio.png" /></p>
 
 
 
@@ -100,7 +100,7 @@ A couple of munin plugins for UniFi gear - All written in 100% perl
  plugin run while speedtest is running, it'll report zero - by default, munin runs every 5 min, 
  on :00, :05, etc - plan accordingly)
 
-<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/unifi_xfer_by_uplink.png" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/example-graphs/unifi_xfer_by_uplink.png" /></p>
 
 
 
@@ -157,12 +157,12 @@ dump all of this in a single multigraph, but then there is no easy pick-and-choo
 
 This is what adding all of these did to my munin processing time:
 
-<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/perf_concern.png" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/example-graphs/perf_concern.png" /></p>
 
 After a week of this, I refactored every plugin to use dirtyconfig - A way of returning the config 
 and the data at the same time.  That saved a good bit of processing time:
 
-<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/sample_images/perf-update.png" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/example-graphs/perf-update.png" /></p>
 
 ## Pull Requests, etc.
 
