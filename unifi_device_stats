@@ -5,13 +5,22 @@
 
 =head1 NAME
 
-unifi_device_cpu - Munin plugin to display cpu usage for each
-ubiquity / unifi device.
+unifi_device_stats - Munin plugin to display system statistics
+for each ubiquity / unifi device.
 
 =head1 APPLICABLE SYSTEMS
 
 Currently is cabable of polling the unifi line (Ubiquity) from the unifi 
-API - requires direct access to the controllor API.
+API - requires direct access to the controllor API. Requires multigraph.
+
+=head1 GRAPHS PROVIDED
+
+This plugin provides:
+
+ * unifi_device_cpu - CPU usage percentage
+ * unifi_device_load - Load average (Switches and AP's only)
+ * unifi_device_mem - Memory usage percentage
+ * unifi_device_uptime - Uptime counter
 
 =head1 CONFIGURATION
 
@@ -34,6 +43,14 @@ per-plugin, or using a wildcard like below:
     env.site site_string 
     # default is "default" - found when you connect to the web interface - 
     # it's the term in the URL - /manage/site/site_string/dashboard
+
+ You may toggle individual sections of this plugin off if you prefer.
+
+  [unifi_device_stats]
+    env.showcpu no
+    env.showload no
+    env.showmem no
+    env.showuptime no
 
 =head1 CAPABILITIES
 
@@ -83,7 +100,6 @@ L<https://github.com/jtsage/unifi-munin-plugins>
 
 =cut
 
-
 use warnings;
 use strict;
 use utf8;
@@ -111,19 +127,12 @@ if ( @errorCode != 0 ) {
 	die "FATAL:$me: Perl dependancies not installed (", join(", " => @errorCode), ")\n";
 }
 
+if ( ! $ENV{"MUNIN_CAP_MULTIGRAPH"} ) {
+	die "FATAL:$me: Multigraph capability required\n";
+}
+
 use JSON;
 use WWW::Curl::Easy;
-
-# Use multigraph by default, if it's available - allow user override
-my $use_multigraph = ( $ENV{MUNIN_CAP_MULTIGRAPH} ) ? (
-		( defined $ENV{'multigraph'} && $ENV{'multigraph'} =~ m/no/i ) ? (
-			0 # User disabled
-		) : (
-			1 # Default Option
-		)
-	) : (
-		0 # Not Supported By Munin
-	);
 
 # Somewhat (in)sane defaults for host, pass, etc.
 #
@@ -153,7 +162,7 @@ my $retcode;
 
 # Set up curl, and login to API
 $curl->setopt(CURLOPT_POST,1);
-$curl->setopt(CURLOPT_COOKIEFILE,"");
+$curl->setopt(CURLOPT_COOKIEFILE,"");  # Session only cookie.
 $curl->setopt(CURLOPT_SSL_VERIFYPEER, $APISSLPer);
 $curl->setopt(CURLOPT_SSL_VERIFYHOST, $APISSLHst);
 $curl->setopt(CURL_SSLVERSION_TLSv1, 1);
@@ -172,6 +181,7 @@ if ( $jsonLogResp->{"meta"}->{"rc"} ne "ok" ) {
 	die "FATAL:$me: Unable to login to API - it said: " , $jsonLogResp->{"meta"}->{"msg"} , "\n";
 }
 
+
 # Get some API data.
 $curl->setopt(CURLOPT_HTTPGET,1);
 $curl->setopt(CURLOPT_WRITEDATA, \$APIRawResp);
@@ -179,7 +189,7 @@ $curl->setopt(CURLOPT_URL, $APIPoint);
 $retcode = $curl->perform;
 
 # Decode response
-my $jsonOBJ = new JSON;
+my $jsonOBJ = new JSON or die "FATAL:$me: JSON init failed!\n";
 my $jsonResp = $jsonOBJ->allow_nonref->utf8->relaxed->decode($APIRawResp);
 
 if ( $retcode != 0 ) { 
@@ -201,29 +211,115 @@ if ( $retcode != 0 ) {
 my %deviceList;
 
 foreach ( @{$jsonResp->{"data"}} ) {
-	$deviceList{ make_safe( $_->{"name"})} = {
+	$deviceList{ make_safe( $_->{"name"} ) } = {
 		"name" => $_->{"name"},
-		"value" => $_->{"system-stats"}->{"cpu"} 
+		"uptime" => $_->{'uptime'},
+		"cpu" => $_->{"system-stats"}->{"cpu"},
+		"mem" => $_->{"system-stats"}->{"mem"},
+		"load" => ( $_->{"type"} =~ /usw|uap/ ? $_->{'sys_stats'}->{'loadavg_1'} : "unsup" )
 	};
 }
 
-if ( defined($ARGV[0]) && $ARGV[0] eq "config" ) {
-	print "graph_title CPU Usage : " , $APIconfig{"name"} , "\n";
-	print "graph_args --base 1000 -r --lower-limit 0 --upper-limit 100\n";
-	print "graph_vlabel %\n";
-	print "graph_category unifi\n";
+my %modes = (
+	"cpu" => 	(( defined $ENV{"showcpu"}    && $ENV{"showcpu"}    =~ m/no/i ) ? 0 : 1 ),
+	"mem" => 	(( defined $ENV{"showmem"}    && $ENV{"showmem"}    =~ m/no/i ) ? 0 : 1 ),
+	"load" => 	(( defined $ENV{"showload"}   && $ENV{"showload"}   =~ m/no/i ) ? 0 : 1 ),
+	"uptime" => (( defined $ENV{"showuptime"} && $ENV{"showuptime"} =~ m/no/i ) ? 0 : 1 )
+);
 
-	foreach ( sort keys %deviceList ) {
-		print $_ . ".label " . $deviceList{$_}->{"name"} . "\n";
-		if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) {
-			print $_ . ".value " . ( $deviceList{$_}->{"value"} ) . "\n";
+if ( defined($ARGV[0]) && $ARGV[0] eq "config" ) {
+	if ( $modes{"uptime"} ) {
+		print "multigraph unifi_device_uptime\n";
+		print "graph_title Uptime : " , $APIconfig{"name"} , "\n";
+		print "graph_args --base 1000 -r --lower-limit 0\n";
+		print "graph_vlabel days\n";
+		print "graph_category unifi\n";
+
+		foreach ( sort keys %deviceList ) {
+			print $_ , ".label " , $deviceList{$_}->{"name"} , "\n";
+			if ( $ENV{"MUNIN_CAP_DIRTYCONFIG"} ) {
+				print $_ , ".value " , ( $deviceList{$_}->{"uptime"} / 86400 ) , "\n";
+			}
 		}
 	}
+	if ( $modes{"cpu"} ) {
+		print "multigraph unifi_device_cpu\n";
+		print "graph_title CPU Usage : " , $APIconfig{"name"} , "\n";
+		print "graph_args --base 1000 -r --lower-limit 0 --upper-limit 100\n";
+		print "graph_vlabel %\n";
+		print "graph_category unifi\n";
+
+		foreach ( sort keys %deviceList ) {
+			print $_ , ".label " , $deviceList{$_}->{"name"} , "\n";
+			if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) {
+				print $_ , ".value " , ( $deviceList{$_}->{"cpu"} ) , "\n";
+			}
+		}
+	}
+	if ( $modes{"mem"} ) {
+		print "multigraph unifi_device_mem\n";
+		print "graph_title Memory Usage : " , $APIconfig{"name"} , "\n";
+		print "graph_args --base 1000 -r --lower-limit 0 --upper-limit 100\n";
+		print "graph_vlabel %\n";
+		print "graph_category unifi\n";
+
+		foreach ( sort keys %deviceList ) {
+			print $_ , ".label " , $deviceList{$_}->{"name"} , "\n";
+			if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) {
+				print $_ , ".value " , ( $deviceList{$_}->{"mem"} ) , "\n";
+			}
+		}
+	}
+	if ( $modes{"load"} ) {
+		print "multigraph unifi_device_load\n";
+		print "graph_title Load Average : " . $APIconfig{"name"} . "\n";
+		print "graph_args -l 0 --base 1000\n";
+		print "graph_vlabel load\n";
+		print "graph_category unifi\n";
+
+		foreach ( sort keys %deviceList ) {
+			if ( $deviceList{$_}->{"load"} ne "unsup" ) { 
+				print $_ , ".label " , $deviceList{$_}->{"name"} , "\n";
+				if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) {
+					print $_ , ".value " , ( $deviceList{$_}->{"load"} ) , "\n";
+				}
+			}
+		}
+	}
+
 	exit 0;
 
 } else {
-	foreach ( sort keys %deviceList ) {
-		print $_ . ".value " . ( $deviceList{$_}->{"value"} ) . "\n";
+
+	if ( $modes{"uptime"} ) {
+		print "multigraph unifi_device_uptime\n";
+
+		foreach ( sort keys %deviceList ) {
+			print $_ , ".value " , ( $deviceList{$_}->{"uptime"} / 86400 ) , "\n";
+		}
+	}
+	if ( $modes{"cpu"} ) {
+		print "multigraph unifi_device_cpu\n";
+		
+		foreach ( sort keys %deviceList ) {
+			print $_ , ".value " , ( $deviceList{$_}->{"cpu"} ) , "\n";
+		}
+	}
+	if ( $modes{"mem"} ) {
+		print "multigraph unifi_device_mem\n";
+
+		foreach ( sort keys %deviceList ) {
+			print $_ , ".value " , ( $deviceList{$_}->{"mem"} ) , "\n";
+		}
+	}
+	if ( $modes{"load"} ) {
+		print "multigraph unifi_device_load\n";
+
+		foreach ( sort keys %deviceList ) {
+			if ( $deviceList{$_}->{"load"} ne "unsup" ) { 
+				print $_ , ".value " , ( $deviceList{$_}->{"load"} ) , "\n";
+			}
+		}
 	}
 }
 

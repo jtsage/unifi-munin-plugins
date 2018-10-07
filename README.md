@@ -25,7 +25,7 @@ A couple of munin plugins for UniFi gear - All written in 100% perl
 
  
 
-### unifi\_device\_cpu
+### unifi\_device\_cpu _(provided by unifi_device_stats multigraph)_
  
  Display CPU usage on each unifi device
  
@@ -33,7 +33,7 @@ A couple of munin plugins for UniFi gear - All written in 100% perl
 
 
 
-### unifi\_device\_load
+### unifi\_device\_load _(provided by unifi_device_stats multigraph)_
 
  Display the load average on each unifi device
  
@@ -41,7 +41,7 @@ A couple of munin plugins for UniFi gear - All written in 100% perl
 
 
 
-### unifi\_device\_mem
+### unifi\_device\_mem _(provided by unifi_device_stats multigraph)_
  
  Display the memory usage on each unifi device
 
@@ -49,7 +49,7 @@ A couple of munin plugins for UniFi gear - All written in 100% perl
 
 
 
-### unifi\_device\_uptime
+### unifi\_device\_uptime _(provided by unifi_device_stats multigraph)_
  
  Display the uptime of each unifi device, in days
 
