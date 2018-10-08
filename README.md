@@ -1,13 +1,13 @@
-UniFi Munin Plugins
+UniFi Munin Plugin
 ===================
-A couple of munin plugins for UniFi gear - All written in 100% perl 
+A munin plugin for UniFi gear - All written in 100% perl 
 
  * standard pre-requisites, no 3rd party API client.
  * does not yet support WebRTC requests - needs direct access to the controller.
  * most plugins support munin-multigraph
  * all plugins support [munin-dirtyconfig](http://guide.munin-monitoring.org/en/latest/plugin/protocol-dirtyconfig.html) (see performance below.)
 
-## Available Plugins:
+## Available Graphs:
 
 
 ### unifi\_clients\_by\_device _(multigraph)_
@@ -110,20 +110,20 @@ A couple of munin plugins for UniFi gear - All written in 100% perl
 In your munin-node plugin configruation file, you'll need to add:
 
 ```ini
-[unifi_*]
+[unifi_api]
   env.user Controller_Username
   # default is ubnt
 
   env.pass Controller_Password
   # default is ubnt
 
-  env.host https://unifi.fqdn.com:8443
-  # default is localhost:8443
+  env.api_url https://unifi.fqdn.com:8443
+  # default is https://localhost:8443
 
-  env.sslh no 
+  env.ssl_verify_host no 
   # Check That SSL host is valid, default is yes
 
-  env.sslp no 
+  env.ssl_verify_peer no 
   # Check That SSL peer is valid, default is yes
 
   env.name Site Name
@@ -133,9 +133,59 @@ In your munin-node plugin configruation file, you'll need to add:
   # default is "default" - found when you connect to the web interface - it's the term
   # in the URL - /manage/site/site_string/dashboard
 ```
-
 It is probably a wise idea to add a read-only admin to your site for this purpose.  The munin-node 
 configuration file is not a terribly secure place to store login details.
+
+Additionally, you can configure:
+
+```ini
+[unifi_api]
+  env.enable_device_cpu yes
+  # Show device CPU utilization
+
+  env.enable_device_mem yes
+  # Show device memory usage
+
+  env.enable_device_load yes
+  # Show device load average (switches and APs only)
+
+  env.enable_device_uptime yes
+  # Show device uptime
+
+  env.enable_clients_device yes
+  # Show number of clients connected to each device
+  env.enable_detail_clients_device yes
+  # Show detailed graphs for each device
+
+  env.enable_clients_type yes
+  # Show number of clients connected to each network type
+  env.enable_detail_clients_type yes
+  # Show detailed graphs for each client type
+  env.show_authorized_clients_type yes
+  # Show unauthorized / authorized client list - if you are not using the guest portal, this is useless
+
+  env.enable_xfer_port yes
+  # Show transfer statistics on switch ports
+  env.enable_detail_xfer_port yes
+  # Show detailed graphs per switch port
+  env.hide_empty_xfer_port yes
+  # Hide ports that have no link
+
+  env.enable_xfer_device yes
+  # Show transfer statistics per device
+  env.enable_detail_xfer_device yes
+  # Show detailed graphs for each device
+
+  env.enable_xfer_network yes
+  # Show transfer statistics per named network
+  env.enable_detail_xfer_network yes
+  # Show detailed graphs for each named network
+
+  env.enable_xfer_radio yes
+  # Show transfer statistics per radio
+  env.enable_detail_xfer_radio yes
+  # Show detailed graphs for each radio
+```
 
 ## Prerequisites:
 
@@ -163,6 +213,8 @@ After a week of this, I refactored every plugin to use dirtyconfig - A way of re
 and the data at the same time.  That saved a good bit of processing time:
 
 <p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/example-graphs/perf-update.png" /></p>
+
+Stay tuned for the change to a monolithic single file.  The savings are extream.
 
 ## Pull Requests, etc.
 
