@@ -172,7 +172,7 @@ my %APIPoint = (
 	'sta'    => $APIconfig{"api_url"} . "/api/s/" . $APIconfig{"site"} . "/stat/sta",
 );
 
-my %APIRAWResponse;
+my %APIResponse;
 my %APIJsonResponse;
 my %Data;
 my $retcode;
@@ -256,80 +256,17 @@ if ( $APIJsonResponse{'wlan'}->{'meta'}->{'rc'} ne 'ok' ) {
 
 make_data();
 
-die("need to do - implement");
-
-
-
-
-
 if ( defined($ARGV[0]) && $ARGV[0] eq "config" ) {
-	if ( $use_multigraph ) {
-		print "multigraph unifi_xfer_per_device\n";
-	}
-	print "graph_title Transfer per device : " , $APIconfig{"name"} , "\n";
-	print "graph_vlabel Bytes/\${graph_period} rcvd (-) / trans (+)\n";
-	print "graph_category unifi\n";
-	print "graph_args --base 1000\n";
-	print "graph_info Bytes transfered per device\n";
-
-	foreach my $thisNet ( sort keys %netList ) {
-		foreach ( "_rxbytes", "_txbytes" ) {
-			print $thisNet , $_ , ".label " , $netList{$thisNet}->{"label"} , "\n";
-			print $thisNet , $_ , ".type DERIVE\n";
-			print $thisNet , $_ , ".min 0\n";
-		}
-		print $thisNet , "_rxbytes.graph no\n";
-		print $thisNet , "_txbytes.negative " , $thisNet , "_rxbytes\n";
-		if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) {
-			print $thisNet , "_rxbytes.value " , $netList{$thisNet}->{"rx"} , "\n";
-			print $thisNet , "_txbytes.value " , $netList{$thisNet}->{"tx"} , "\n";
-		}
-	}
-
-	if ( $use_multigraph ) {
-		foreach my $thisNet ( sort keys %netList ) {
-			print "multigraph unifi_xfer_per_device." , $thisNet , "\n";
-			print "graph_title Transfer / device : " , $netList{$thisNet}->{"label"} , " : " , $APIconfig{"name"} , "\n";
-			print "graph_vlabel Bytes/\${graph_period} rcvd (-) / trans (+)\n";
-			print "graph_category unifi\n";
-			print "graph_args --base 1000\n";
-			foreach ( "rxbyte", "txbyte" ) {
-				print $_ , ".label Bytes\n";
-				print $_ , ".type DERIVE\n";
-				print $_ , ".min 0\n";
-			}
-			print "rxbyte.graph no\n";
-			print "txbyte.negative rxbyte\n";
-			if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) {
-				print "rxbyte.value " , $netList{$thisNet}->{"rx"} , "\n";
-				print "txbyte.value " , $netList{$thisNet}->{"tx"} , "\n";
-			}
-		}
-	}
-	exit 0;
-
+	print "Config!\n";
 } else {
-	if ( $use_multigraph ) {
-		print "multigraph unifi_xfer_per_device\n";
-	}
-	foreach ( sort keys %netList ) {
-		print $_ . "_rxbytes.value " . $netList{$_}->{"rx"} , "\n";
-		print $_ . "_txbytes.value " . $netList{$_}->{"tx"} , "\n";
-	}
-	if ( $use_multigraph ) {
-		foreach ( sort keys %netList ) {
-			print "multigraph unifi_xfer_per_device." , $_ , "\n";
-			print "rxbyte.value " , $netList{$_}->{"rx"} , "\n";
-			print "txbyte.value " , $netList{$_}->{"tx"} , "\n";
-		}
-	}
+	print "Values!\n";
 }
 
 # Collate all collected data into something we can use.
 sub make_data {
 	foreach my $thisDevice ( @{$APIJsonResponse{'device'}->{'data'}} ) {
 		$Data{'device'}{ make_safe($thisDevice->{'name'}) } = {
-			'label'   => $thisDevice{'name'},
+			'label'   => $thisDevice->{'name'},
 			'users'   => ($thisDevice->{'user-num_sta'} || 0),
 			'guests'  => ($thisDevice->{'guest-num_sta'} || 0),
 			'clients' => ($thisDevice->{'user-num_sta'} + $thisDevice->{'guest-num_sta'} || 0),
@@ -351,7 +288,7 @@ sub make_data {
 				}
 			}
 
-			$Data{'uplink'}{'devName'}  = $thisDevice{'name'};
+			$Data{'uplink'}{'devName'}  = $thisDevice->{'name'};
 			$Data{'uplink'}{'rx_speed'} = $thisDevice->{'speedtest-status'}->{'xput_download'} * 1000000;
 			$Data{'uplink'}{'tx_speed'} = $thisDevice->{'speedtest-status'}->{'xput_upload'} * 1000000;
 
