@@ -5,7 +5,7 @@
 
 =head1 NAME
 
-unifi - Munin plugin to display device and network information from the Ubiquiti unifi API
+unifi_api - Munin plugin to display device and network information from the Ubiquiti unifi API
 
 =head1 APPLICABLE SYSTEMS
 
@@ -21,7 +21,7 @@ This script uses the multigraph functionality to generate many graphs.
 
 You will need to supply your API login details:
 
-  [unifi]
+  [unifi_api]
     env.user Controller_Username
     # default is ubnt
 
