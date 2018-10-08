@@ -100,7 +100,6 @@ use warnings;
 use strict;
 use utf8;
 use Data::Dumper;
-use Munin::Plugin;
 
 # Check dependancies
 my @errorCode;
@@ -160,11 +159,11 @@ my %PluginConfig = (
 	'enable_detail_clients_device'  => env_default_bool_true('enable_detail_clients_device'),
 	'enable_detail_clients_network' => env_default_bool_true('enable_detail_clients_network'),
 	'hide_empty_xfer_port'          => env_default_bool_true('hide_empty_xfer_port'),
-	'show_authorized_clients_type'  => env_default_bool_true('show_authorized_clients_type')
+	'show_authorized_clients_type'  => env_default_bool_true('show_authorized_clients_type'),
 );
 
 
-# Set up needed API endpoints and date strings
+# Set up needed API endpoints
 my %APIPoint = (
 	'login'  => $APIconfig{"api_url"} . "/api/login",
 	'device' => $APIconfig{"api_url"} . "/api/s/" . $APIconfig{"site"} . "/stat/device",
@@ -265,6 +264,7 @@ if ( defined($ARGV[0]) && $ARGV[0] eq "config" ) {
 # Collate all collected data into something we can use.
 sub make_data {
 	foreach my $thisDevice ( @{$APIJsonResponse{'device'}->{'data'}} ) {
+		# Grab everything we care to know about each device.
 		$Data{'device'}{ make_safe($thisDevice->{'name'}) } = {
 			'label'   => $thisDevice->{'name'},
 			'users'   => ($thisDevice->{'user-num_sta'} || 0),
@@ -279,7 +279,8 @@ sub make_data {
 			'load'    => ( $thisDevice->{'type'} =~ /usw|uap/ ? $thisDevice->{'sys_stats'}->{'loadavg_1'} : 'U' ),
 			'type'    => $thisDevice->{'type'}
 		};
-		if ( $thisDevice->{'type'} eq 'ugw' ) {
+
+		if ( $thisDevice->{'type'} eq 'ugw' ) { # Handle firewall specially, record uplink and networks
 			foreach my $thisNet ( @{$thisDevice->{'network_table'}} ) {
 				$Data{'networks'}{ make_safe($thisNet->{'name'}) } = {
 					'label' => $thisNet->{'name'},
@@ -298,10 +299,9 @@ sub make_data {
 					$Data{'uplink'}{'tx_bytes'} = $_->{'tx_bytes'};
 				}
 			}
-			
 		}
 
-		if ( $thisDevice->{'type'} eq 'usw' ) {
+		if ( $thisDevice->{'type'} eq 'usw' ) { # Handle swiches specially - record port stats
 			my @port_list;
 
 			foreach my $port ( @{$thisDevice->{'port_table'}} ) {
@@ -317,7 +317,7 @@ sub make_data {
 			$Data{'device'}{ make_safe($thisDevice->{'name'}) }{'ports'} = \@port_list;
 		}
 
-		if ( $thisDevice->{'type'} eq 'uap' ) {
+		if ( $thisDevice->{'type'} eq 'uap' ) { # Handle APS specially - record radio stats
 			my @theseRadios;
 
 			foreach my $thisRadio ( @{$thisDevice->{'radio_table_stats'}} ) {
@@ -364,9 +364,40 @@ sub make_data {
 	foreach ( sort @wlans ) {
 		push @{$Data{'typesOrder'}}, $_;
 	}
+
+	if ( $PluginConfig{'enable_clients_type'} ) {
+		# For a lot of clients, this is probably CPU intensive, so only do it if needed.
+		foreach my $client ( @{$APIJsonResponse{'sta'}->{'data'}} ) {
+			if ( $client->{"is_wired"} ) {
+				if ( $client->{"is_guest"} ) {
+					$Data{'types'}->{'wired'}[3]++;
+					$Data{'types'}->{'guest'}[3]++;
+				} else {
+					$Data{'types'}->{'wired'}[2]++;
+					$Data{'types'}->{'user'}[2]++;
+				}
+			} else {
+				if ( $client->{"is_guest"} ) {
+					$Data{'types'}->{make_safe($client->{"essid"})}[3]++;
+					$Data{'types'}->{'wifi'}[3]++;
+					$Data{'types'}->{'guest'}[3]++;
+					if ( $client->{"authorized"} ) {
+						$Data{'types'}->{'authed'}[3]++;
+					} else {
+						$Data{'types'}->{'unauth'}[3]++;
+					}
+				} else {
+					$Data{'types'}->{make_safe($client->{"essid"})}[2]++;
+					$Data{'types'}->{'wifi'}[2]++;
+					$Data{'types'}->{'user'}[2]++;
+				}
+			}
+		}
+	}
+	return 1;
 }
 
-# Make field names safe.
+# Make field names safe, and lowercase. Sourced originally from Munin::Plugin
 sub make_safe { $_ = lc($_[0]); s/^[^a-z_]+/_/; s/\W/_/g; return ( $_ eq "root" ? "__root" : $_ ); }
 
 # Get a default from an enviromental variable - return text
