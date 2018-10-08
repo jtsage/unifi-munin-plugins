@@ -1,0 +1,452 @@
+#!/usr/bin/perl
+# -*- perl -*-
+
+=encoding utf8
+
+=head1 NAME
+
+unifi - Munin plugin to display transfer statistics 
+for each ubiquity / unifi device.
+
+=head1 APPLICABLE SYSTEMS
+
+Currently is cabable of polling the unifi line (Ubiquity) from the unifi 
+API - requires direct access to the controllor API.
+
+=head1 CONFIGURATION
+
+This script uses the multigraph functionality to generate many graphs.
+
+For multigraph operation, the "internal" graphs will be one per device
+with seperate metrics for read and write. The main graph shows total
+all devices.
+
+If you are only interested in a single combined graph, you can set:
+
+  [unifi_xfer_by_device]
+    env.multigraph no
+
+You will also need to supply your API login details - you may do so 
+per-plugin, or using a wildcard like below:
+
+  [unifi_*]
+    env.user Controller_Username
+    # default is ubnt
+    env.pass Controller_Password
+    # default is ubnt
+    env.host https://unifi.fqdn.com:8443
+    # default is https://localhost:8443
+    env.sslh no 
+    # Check That SSL host is valid, default is yes
+    env.sslp no 
+    # Check That SSL peer is valid, default is yes
+    env.name Site Name
+    # A pretty name for the unifi site - used in graph titles.
+    env.site site_string 
+    # default is "default" - found when you connect to the web interface - it's the term
+    # in the URL - /manage/site/site_string/dashboard
+
+=head1 CAPABILITIES
+
+This plugin is a multigraph plugin by default.
+
+This plugin supports DIRTYCONFIG : L<http://guide.munin-monitoring.org/en/latest/plugin/protocol-dirtyconfig.html>
+
+=head1 DEPENDENCIES
+
+=over
+
+=item WWW::Curl::Easy
+
+Perl extension interface for libcurl
+
+=item JSON
+
+ JSON (JavaScript Object Notation) encoder/decoder
+
+=back
+
+=head1 LICENSE
+
+Copyright (C) 2018 J.T.Sage (jtsage@gmail.com)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see L<http://www.gnu.org/licenses/>.
+
+=head1 VERSION
+
+Most recent version available from 
+
+L<https://github.com/jtsage/unifi-munin-plugins>
+
+=head1 MAGICK MARKERS
+
+  #%# family=manual
+  #%# capabilities=autoconf
+
+=cut
+
+use warnings;
+#use strict;
+use utf8;
+use Data::Dumper;
+use Munin::Plugin;
+
+# Check dependancies
+my @errorCode;
+my $me = (split '/', $0)[-1];
+
+if (! eval {require JSON; JSON->import(); 1; } ) {
+	push @errorCode, "JSON module not found";
+}
+if (! eval {require WWW::Curl::Easy; 1;} ) {
+	push @errorCode, "WWW::Curl::Easy module not found";
+}
+
+# Provide autoconf info
+if ( defined($ARGV[0]) && $ARGV[0] eq "autoconf" ) {
+	push @errorCode, "Requires configuration";
+	print "no (", join(", " => @errorCode), ")\n";
+	exit(0);
+}
+
+# Fail on not found dependancies
+if ( @errorCode != 0 ) {
+	die "FATAL:$me: Perl dependancies not installed (", join(", " => @errorCode), ")\n";
+}
+
+# Multigraph cabability is required for this plugin
+if ( ! $ENV{'MUNIN_CAP_MULTIGRAPH'} ) {
+	die "FATAL:$me: Multigraph capability required\n";
+}
+
+# Somewhat (in)sane defaults for host, pass, etc
+my %APIconfig = (
+	'user'            => env_default_text('user'           , 'ubnt'),
+	'pass'            => env_default_text('pass'           , 'ubnt'),
+	'api_url'         => env_default_text('api_url'        , 'https://localhost:8443'),
+	'site'            => env_default_text('site'           , 'default'),
+	'ssl_verify_host' => env_default_text('ssl_verify_host', 'yes'),
+	'ssl_verify_peer' => env_default_text('ssl_verify_peer', 'yes'),
+	'name'            => env_default_text('name'           , 'Unnamed Site'),
+);
+
+# The big table of plugin options - see POD documentation for what these do.
+my %PluginConfig = (
+	'enable_device_cpu'             => env_default_bool_true('enable_device_cpu'),
+	'enable_device_mem'             => env_default_bool_true('enable_device_mem'),
+	'enable_device_load'            => env_default_bool_true('enable_device_load'),
+	'enable_device_uptime'          => env_default_bool_true('enable_device_uptime'),
+	'enable_clients_device'         => env_default_bool_true('enable_clients_device'),
+	'enable_clients_type'           => env_default_bool_true('enable_clients_network'),
+	'enable_xfer_port'              => env_default_bool_true('enable_xfer_port'),
+	'enable_xfer_device'            => env_default_bool_true('enable_xfer_device'),
+	'enable_xfer_network'           => env_default_bool_true('enable_xfer_network'),
+	'enable_xfer_radio'             => env_default_bool_true('enable_xfer_radio'),
+	'enable_detail_xfer_port'       => env_default_bool_true('enable_detail_xfer_port'),
+	'enable_detail_xfer_device'     => env_default_bool_true('enable_detail_xfer_device'),
+	'enable_detail_xfer_network'    => env_default_bool_true('enable_detail_xfer_network'),
+	'enable_detail_xfer_radio'      => env_default_bool_true('enable_detail_xfer_radio'),
+	'enable_detail_clients_device'  => env_default_bool_true('enable_detail_clients_device'),
+	'enable_detail_clients_network' => env_default_bool_true('enable_detail_clients_network'),
+	'hide_empty_xfer_port'          => env_default_bool_true('hide_empty_xfer_port'),
+	'show_authorized_clients_type'  => env_default_bool_true('show_authorized_clients_type')
+);
+
+
+# Set up needed API endpoints and date strings
+my %APIPoint = (
+	'login'  => $APIconfig{"api_url"} . "/api/login",
+	'device' => $APIconfig{"api_url"} . "/api/s/" . $APIconfig{"site"} . "/stat/device",
+	'wlan'   => $APIconfig{"api_url"} . "/api/s/" . $APIconfig{"site"} . "/rest/wlanconf",
+	'sta'    => $APIconfig{"api_url"} . "/api/s/" . $APIconfig{"site"} . "/stat/sta",
+);
+
+my %APIRAWResponse;
+my %APIJsonResponse;
+my %Data;
+my $retcode;
+
+# Init curl and JSON
+my $curl = WWW::Curl::Easy->new() or die "FATAL:$me: WWW::Curl::Easy init failed!\n";
+my $jsonOBJ = JSON->new() or die "FATAL:$me: JSON init failed!\n";
+
+# Set up curl, and login to API
+$curl->setopt($curl->CURLOPT_POST,1);
+$curl->setopt($curl->CURLOPT_COOKIEFILE,"");  # Session only cookie
+$curl->setopt($curl->CURLOPT_SSL_VERIFYPEER, (( $APIconfig{"ssl_verify_peer"} =~ m/no/i ) ? 0 : 1) );
+$curl->setopt($curl->CURLOPT_SSL_VERIFYHOST, (( $APIconfig{"ssl_verify_host"} =~ m/no/i ) ? 0 : 2) );
+$curl->setopt($curl->CURL_SSLVERSION_TLSv1, 1);
+$curl->setopt($curl->CURLOPT_URL, $APIPoint{'login'});
+$curl->setopt($curl->CURLOPT_POSTFIELDS, q[{'username':'] . $APIconfig{"user"} . q[', 'password':'] . $APIconfig{"pass"} . q['}] );
+$curl->setopt($curl->CURLOPT_WRITEDATA, \$APIResponse{'login'});
+$retcode = $curl->perform;
+
+if ( $retcode != 0 ) {
+	die "FATAL:$me: Unable to connect to API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+}
+
+$APIJsonResponse{'login'} = $jsonOBJ->allow_nonref->utf8->relaxed->decode($APIResponse{'login'});
+
+if ( $APIJsonResponse{'login'}->{'meta'}->{'rc'} ne 'ok' ) {
+	die "FATAL:$me: Unable to login to API - it said: " , $APIJsonResponse{'login'}->{'meta'}->{'msg'} , "\n";
+}
+
+# Change method to GET
+$curl->setopt($curl->CURLOPT_HTTPGET,1);
+
+
+# Get some API data.
+
+# Device data
+$curl->setopt($curl->CURLOPT_WRITEDATA, \$APIResponse{'device'});
+$curl->setopt($curl->CURLOPT_URL, $APIPoint{'device'});
+$retcode = $curl->perform;
+
+if ( $retcode != 0 ) {
+	die "FATAL:$me: Unable to connect to API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+}
+
+$APIJsonResponse{'device'} = $jsonOBJ->allow_nonref->utf8->relaxed->decode($APIResponse{'device'});
+
+if ( $APIJsonResponse{'device'}->{'meta'}->{'rc'} ne 'ok' ) {
+	die "FATAL:$me: Unable get device data from API - it said: " , $APIJsonResponse{'device'}->{'meta'}->{'msg'} , "\n";
+}
+
+# STA (client) data
+$curl->setopt($curl->CURLOPT_WRITEDATA, \$APIResponse{'sta'});
+$curl->setopt($curl->CURLOPT_URL, $APIPoint{'sta'});
+$retcode = $curl->perform;
+
+if ( $retcode != 0 ) {
+	die "FATAL:$me: Unable to connect to API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+}
+
+$APIJsonResponse{'sta'} = $jsonOBJ->allow_nonref->utf8->relaxed->decode($APIResponse{'sta'});
+
+if ( $APIJsonResponse{'sta'}->{'meta'}->{'rc'} ne 'ok' ) {
+	die "FATAL:$me: Unable get sta data from API - it said: " , $APIJsonResponse{'sta'}->{'meta'}->{'msg'} , "\n";
+}
+
+# WLAN data
+$curl->setopt($curl->CURLOPT_WRITEDATA, \$APIResponse{'wlan'});
+$curl->setopt($curl->CURLOPT_URL, $APIPoint{'wlan'});
+$retcode = $curl->perform;
+
+if ( $retcode != 0 ) {
+	die "FATAL:$me: Unable to connect to API: " . $curl->strerror($retcode) . " " . $curl->errbuf . "\n";
+}
+
+$APIJsonResponse{'wlan'} = $jsonOBJ->allow_nonref->utf8->relaxed->decode($APIResponse{'wlan'});
+
+if ( $APIJsonResponse{'wlan'}->{'meta'}->{'rc'} ne 'ok' ) {
+	die "FATAL:$me: Unable get wlan data from API - it said: " , $APIJsonResponse{'wlan'}->{'meta'}->{'msg'} , "\n";
+}
+
+
+make_data();
+
+die("need to do - implement");
+
+
+
+
+
+if ( defined($ARGV[0]) && $ARGV[0] eq "config" ) {
+	if ( $use_multigraph ) {
+		print "multigraph unifi_xfer_per_device\n";
+	}
+	print "graph_title Transfer per device : " , $APIconfig{"name"} , "\n";
+	print "graph_vlabel Bytes/\${graph_period} rcvd (-) / trans (+)\n";
+	print "graph_category unifi\n";
+	print "graph_args --base 1000\n";
+	print "graph_info Bytes transfered per device\n";
+
+	foreach my $thisNet ( sort keys %netList ) {
+		foreach ( "_rxbytes", "_txbytes" ) {
+			print $thisNet , $_ , ".label " , $netList{$thisNet}->{"label"} , "\n";
+			print $thisNet , $_ , ".type DERIVE\n";
+			print $thisNet , $_ , ".min 0\n";
+		}
+		print $thisNet , "_rxbytes.graph no\n";
+		print $thisNet , "_txbytes.negative " , $thisNet , "_rxbytes\n";
+		if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) {
+			print $thisNet , "_rxbytes.value " , $netList{$thisNet}->{"rx"} , "\n";
+			print $thisNet , "_txbytes.value " , $netList{$thisNet}->{"tx"} , "\n";
+		}
+	}
+
+	if ( $use_multigraph ) {
+		foreach my $thisNet ( sort keys %netList ) {
+			print "multigraph unifi_xfer_per_device." , $thisNet , "\n";
+			print "graph_title Transfer / device : " , $netList{$thisNet}->{"label"} , " : " , $APIconfig{"name"} , "\n";
+			print "graph_vlabel Bytes/\${graph_period} rcvd (-) / trans (+)\n";
+			print "graph_category unifi\n";
+			print "graph_args --base 1000\n";
+			foreach ( "rxbyte", "txbyte" ) {
+				print $_ , ".label Bytes\n";
+				print $_ , ".type DERIVE\n";
+				print $_ , ".min 0\n";
+			}
+			print "rxbyte.graph no\n";
+			print "txbyte.negative rxbyte\n";
+			if ( $ENV{'MUNIN_CAP_DIRTYCONFIG'} ) {
+				print "rxbyte.value " , $netList{$thisNet}->{"rx"} , "\n";
+				print "txbyte.value " , $netList{$thisNet}->{"tx"} , "\n";
+			}
+		}
+	}
+	exit 0;
+
+} else {
+	if ( $use_multigraph ) {
+		print "multigraph unifi_xfer_per_device\n";
+	}
+	foreach ( sort keys %netList ) {
+		print $_ . "_rxbytes.value " . $netList{$_}->{"rx"} , "\n";
+		print $_ . "_txbytes.value " . $netList{$_}->{"tx"} , "\n";
+	}
+	if ( $use_multigraph ) {
+		foreach ( sort keys %netList ) {
+			print "multigraph unifi_xfer_per_device." , $_ , "\n";
+			print "rxbyte.value " , $netList{$_}->{"rx"} , "\n";
+			print "txbyte.value " , $netList{$_}->{"tx"} , "\n";
+		}
+	}
+}
+
+# Collate all collected data into something we can use.
+sub make_data {
+	foreach my $thisDevice ( @{$APIJsonResponse{'device'}->{'data'}} ) {
+		$Data{'device'}{ make_safe($thisDevice->{'name'}) } = {
+			'label'   => $thisDevice{'name'},
+			'users'   => ($thisDevice->{'user-num_sta'} || 0),
+			'guests'  => ($thisDevice->{'guest-num_sta'} || 0),
+			'clients' => ($thisDevice->{'user-num_sta'} + $thisDevice->{'guest-num_sta'} || 0),
+			'tx'      => $thisDevice->{'rx_bytes'},
+			'rx'      => $thisDevice->{'tx_bytes'},
+			'name'    => $thisDevice->{'name'},
+			'uptime'  => $thisDevice->{'uptime'},
+			'cpu'     => $thisDevice->{'system-stats'}->{'cpu'},
+			'mem'     => $thisDevice->{'system-stats'}->{'mem'},
+			'load'    => ( $thisDevice->{'type'} =~ /usw|uap/ ? $thisDevice->{'sys_stats'}->{'loadavg_1'} : 'U' ),
+			'type'    => $thisDevice->{'type'}
+		};
+		if ( $thisDevice->{'type'} eq 'ugw' ) {
+			foreach my $thisNet ( @{$thisDevice->{'network_table'}} ) {
+				$Data{'networks'}{ make_safe($thisNet->{'name'}) } = {
+					'label' => $thisNet->{'name'},
+					'tx'    => $thisNet->{'tx_bytes'},
+					'rx'    => $thisNet->{'rx_bytes'}
+				}
+			}
+
+			$Data{'uplink'}{'devName'}  = $thisDevice{'name'};
+			$Data{'uplink'}{'rx_speed'} = $thisDevice->{'speedtest-status'}->{'xput_download'} * 1000000;
+			$Data{'uplink'}{'tx_speed'} = $thisDevice->{'speedtest-status'}->{'xput_upload'} * 1000000;
+
+			foreach ( @{$thisDevice->{"port_table"}} ) {
+				if ( $_->{name} eq "wan" ) {
+					$Data{'uplink'}{'rx_bytes'} = $_->{'rx_bytes'};
+					$Data{'uplink'}{'tx_bytes'} = $_->{'tx_bytes'};
+				}
+			}
+			
+		}
+
+		if ( $thisDevice->{'type'} eq 'usw' ) {
+			my @port_list;
+
+			foreach my $port ( @{$thisDevice->{'port_table'}} ) {
+				if ( !$PluginConfig{'hide_empty_xfer_port'} || $port->{'up'} ) {
+					push @port_list , {
+						'name'  => 'port_' . zPad($port->{'port_idx'}),
+						'label' => zPad($port->{'port_idx'}) . '-' . $port->{'name'},
+						'rx'    => $port->{'rx_bytes'},
+						'tx'    => $port->{'tx_bytes'}
+					};
+				}
+			}
+			$Data{'device'}{ make_safe($thisDevice->{'name'}) }{'ports'} = \@port_list;
+		}
+
+		if ( $thisDevice->{'type'} eq 'uap' ) {
+			my @theseRadios;
+
+			foreach my $thisRadio ( @{$thisDevice->{'radio_table_stats'}} ) {
+				my $name  = make_safe( $thisRadio->{'name'} );
+				my $label = ( $thisRadio->{'channel'} < 12 ) ? '2.4Ghz' : '5Ghz';
+
+				$_ = $thisDevice->{'stat'};
+
+				push @theseRadios, {
+					'name'  => $name,
+					'label' => $label . '-' . $thisDevice->{'name'},
+					'pckt'  => $_->{$name . '-rx_packets'} + $_->{$name . '-tx_packets'},
+					'dret'  => $_->{$name . '-rx_dropped'} + $_->{$name . '-tx_retries'} + $_->{$name . '-tx_dropped'},
+					'err'   => $_->{$name . '-rx_errors'}  + $_->{$name . '-tx_errors'},
+					'type'  => $label
+				};
+			}
+			$Data{'device'}{ make_safe($thisDevice->{'name'}) }{'radio'} = \@theseRadios;
+		}
+	} # END PROCESSING OF DEVICE DATA
+
+
+	$Data{'types'} = {
+		"wired"  => ["Wired Connection", 1, 0, 0],
+		"wifi"   => ["Wireless Connection", 1, 0, 0],
+		"user"   => ["Total Users", 0, 0, 0],
+		"guest"  => ["Total Guests", 0, 0, 0],
+		"authed" => ["Authorized Guests", 0, 0, 0],
+		"unauth" => ["Unauthorized Guests", 0, 0, 0],
+	};
+
+	$Data{'typesOrder'} = ( $PluginConfig{'show_authorized_clients_type'} ) ?
+		[ "wired", "wifi", "user", "guest", "authed", "unauth"] :
+		[ "wired", "wifi", "user", "guest" ];
+
+
+	my @wlans;
+
+	foreach my $thisDevice ( @{$APIJsonResponse{'wlan'}->{'data'}} ) {
+		$Data{'types'}{ make_safe($thisDevice->{'name'}) } = [ $thisDevice->{'name'}, 1, 0, 0 ];
+		push @wlans, make_safe($thisDevice->{'name'});
+	}
+
+	foreach ( sort @wlans ) {
+		push @{$Data{'typesOrder'}}, $_;
+	}
+}
+
+# Make field names safe.
+sub make_safe { $_ = lc($_[0]); s/^[^a-z_]+/_/; s/\W/_/g; return ( $_ eq "root" ? "__root" : $_ ); }
+
+# Get a default from an enviromental variable - return text
+#
+# env_default(<variable name>, <default>)
+sub env_default_text {
+	my ( $env_var, $default ) = (@_);
+	return ( ( defined $ENV{$env_var} ) ? $ENV{$env_var} : $default ),
+}
+
+# Get a default from an enviromental variable - boolean true
+#
+# env_default_bool_true (<variable name>, <default>)
+sub env_default_bool_true {
+	my $env_var = $_[0];
+	return ( ( defined $ENV{$env_var} && $ENV{$env_var} =~ m/no/i ) ? 0 : 1 );
+}
+
+# Quick 2 digit zero pad
+sub zPad { return sprintf("%02d", $_[0]); }
