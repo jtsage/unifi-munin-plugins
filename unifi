@@ -97,7 +97,7 @@ L<https://github.com/jtsage/unifi-munin-plugins>
 =cut
 
 use warnings;
-#use strict;
+use strict;
 use utf8;
 use Data::Dumper;
 use Munin::Plugin;
