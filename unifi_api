@@ -113,6 +113,26 @@ Perl extension interface for libcurl
 
 =back
 
+=head1 PERFORMANCE CONCERNS
+
+The main performance concern on this is the huge number of graphs that may be
+generated.  Using the cron version of munin-graph may hurt a lot.
+
+A bit of a case study:
+
+                 | My Site  | UBNT Demo
+---------------------------------------
+Devices          |       8  |     126
+AP's             |       4  |     118
+24xSwitch        |       1  |       5
+8xSwitch         |       2  |       2
+Output Bytes     |  64,262  | 431,434
+Output Lines     |   1,761  |  14,586
+Output Graphs    |      77  |     530
+
+So, just note that the growth in the amount of graphed date can be extream.
+
+
 =head1 LICENSE
 
 Copyright (C) 2018 J.T.Sage (jtsage@gmail.com)
@@ -146,9 +166,6 @@ L<https://github.com/jtsage/unifi-munin-plugins>
 use warnings;
 use strict;
 use utf8;
-
-# Set to debug via locally stored files
-my $LOCAL_DEBUG = 0;
 
 # Check dependancies
 my @errorCode;
@@ -230,9 +247,11 @@ my $curl = WWW::Curl::Easy->new() or die "FATAL:$me: WWW::Curl::Easy init failed
 my $jsonOBJ = JSON->new() or die "FATAL:$me: JSON init failed!\n";
 
 
-## Fetch the data from the API, if LOCAL_DEBUG is set, use files from working repo instead.
+## Fetch the data from the API
 
-if ( $LOCAL_DEBUG ) {
+# The rest is a way to use local files from the local disk. Undocumented and not really supported.
+
+if ( !env_default_bool_true('USE_API') ) {
 	if (! eval {require File::Slurp; File::Slurp->import(); 1; } ) {
 		die "Local debug unavailable, File::Slurp CPAN moduel required\n";
 	}

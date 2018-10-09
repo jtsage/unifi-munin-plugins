@@ -198,23 +198,27 @@ All scripts require
 
 ## Performance:
 
-Largely unknown.  My use case is querying a controller that is not on the munin-node host, and the 
-link is not stellar - that said, ~~running every plugin in this collection, my munin-update time went 
-up by about 30 seconds. Every plugin is going to hit the API twice - just the nature of the beast - 
-from there, it's on the local machine.  I suppose local cacheing could be a thing, but IIRC, munin 
-is asyncronous, so it's only going to save 1 * number\_of\_plugins API calls.  I suppose I could 
-dump all of this in a single multigraph, but then there is no easy pick-and-choose method.~~
+The main performance concern on this is the huge number of graphs that may be
+generated.  Using the cron version of munin-graph may hurt a lot.
 
-This is what adding all of these did to my munin processing time:
+A bit of a case study:
 
-<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/example-graphs/perf_concern.png" /></p>
+|                  | My Site  | UBNT Demo  |
+| ---------------- | -------: | ---------: |
+| Devices          |       8  |     126    |
+| AP's             |       4  |     118    |
+| 24xSwitch        |       1  |       5    |
+| 8xSwitch         |       2  |       2    |
+| Output Bytes     |  64,262  | 431,434    |
+| Output Lines     |   1,761  |  14,586    |
+| Output Graphs    |      77  |     530    |
 
-After a week of this, I refactored every plugin to use dirtyconfig - A way of returning the config 
-and the data at the same time.  That saved a good bit of processing time:
+So, just note that the growth in the amount of graphed date can be extream.
 
-<p align="center"><img src="https://raw.githubusercontent.com/jtsage/unifi-munin-plugins/master/example-graphs/perf-update.png" /></p>
+(That said, on my configuration, and with a locally cached source, the demo site
+can be parsed in a around 0.15 second - I have not graphed all 530 - I'm guessing
+it would take a while.)
 
-Stay tuned for the change to a monolithic single file.  The savings are extream.
 
 ## Pull Requests, etc.
 
