@@ -4,8 +4,8 @@ A munin plugin for UniFi gear - All written in 100% perl
 
  * standard pre-requisites, no 3rd party API client.
  * does not yet support WebRTC requests - needs direct access to the controller.
- * most plugins support munin-multigraph
- * all plugins support [munin-dirtyconfig](http://guide.munin-monitoring.org/en/latest/plugin/protocol-dirtyconfig.html) (see performance below.)
+ * requires multigraph support
+ * supports [munin-dirtyconfig](http://guide.munin-monitoring.org/en/latest/plugin/protocol-dirtyconfig.html) (see performance below.)
 
 ## Available Graphs:
 
@@ -198,6 +198,11 @@ All scripts require
    * JSON (JavaScript Object Notation) encoder/decoder
 
 ## Performance:
+
+Pulling data from an API over a network is often not that fast - the more
+locally this is installed, probably the better.  Using the dirtyconfig support
+means dropping the script from hitting the API 8 times total to hitting it only
+4 times (login and 3 different endpoints)
 
 The main performance concern on this is the huge number of graphs that may be
 generated.  Using the cron version of munin-graph may hurt a lot.
