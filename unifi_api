@@ -252,6 +252,7 @@ if ( $LOCAL_DEBUG ) {
 make_data();
 
 if ( defined($ARGV[0]) && $ARGV[0] eq "config" ) {
+	# Do the config step for each set of graphs
 	do_config_mem();
 	do_config_cpu();
 	do_config_load();
@@ -264,9 +265,11 @@ if ( defined($ARGV[0]) && $ARGV[0] eq "config" ) {
 	do_config_clients_by_device();
 	do_config_clients_by_type();
 
+	# If dirtyconfig is not supported, or turned off, exit here.  Otherwise, continue to fetch section
 	if ( !defined($ENV{'MUNIN_CAP_DIRTYCONFIG'}) || !$ENV{'MUNIN_CAP_DIRTYCONFIG'} ) {  exit 0; }
 }
 
+# Do the fetch step for each set of graphs
 do_values_cpu();
 do_values_mem();
 do_values_load();
@@ -278,6 +281,9 @@ do_values_xfer_by_network();
 do_values_xfer_by_radio();
 do_values_clients_by_device();
 do_values_clients_by_type();
+
+
+
 
 
 
@@ -294,7 +300,8 @@ sub do_config_clients_by_type {
 		'unifi_clients_per_network',
 		'Clients Connected / Network',
 		'-l 0 --base 1000',
-		'clients'
+		'clients',
+		'Clients connected per type - manually summing these numbers may be meaningful, as clients are often of multiple types'
 	);
 
 	foreach ( @{$Data{'typesOrder'}} ) {
@@ -309,7 +316,8 @@ sub do_config_clients_by_type {
 				'unifi_clients_per_network.' . $_,
 				'Clients Connected : ' . $Data{'types'}{$_}[0],
 				'-l 0 --base 1000',
-				'clients'
+				'clients',
+				'Clients connected via that are of type: ' . $Data{'types'}{$_}[0]
 			);
 			print "users.label Users\n";
 			print "guests.label Guests\n";
@@ -326,7 +334,8 @@ sub do_config_clients_by_device {
 		'unifi_clients_per_device',
 		'Clients Connected / Device',
 		'-l 0 --base 1000',
-		'clients'
+		'clients',
+		'Clients connected to each unifi device'
 	);
 
 	foreach ( sort keys %{$Data{'device'}} ) {
@@ -340,7 +349,8 @@ sub do_config_clients_by_device {
 			'unifi_clients_per_device.' . $_,
 			'Clients / Device : ' . $Data{'device'}{$_}->{'label'},
 			'-l 0 --base 1000',
-			'clients'
+			'clients',
+			'Clients connected to the ' . $Data{'device'}{$_}->{'label'} . " unifi device"
 		);
 		print "users.label Users\n";
 		print "guests.label Guests\n";
@@ -356,7 +366,8 @@ sub do_config_xfer_by_radio {
 		'unifi_xfer_per_radio',
 		'Transfer / radio',
 		'--base 1000',
-		'Packets/${graph_period}'
+		'Packets/${graph_period}',
+		'Number of packets transfered per individual radio band'
 	);
 
 	foreach my $thisDevice ( sort keys %{$Data{'device'}} ) {
@@ -378,7 +389,8 @@ sub do_config_xfer_by_radio {
 			'unifi_xfer_per_radio.' .  $thisDevice,
 			'Transfer / radio : ' . $Data{'device'}{$thisDevice}->{'name'},
 			'--base 1000',
-			'Packets/${graph_period}'
+			'Packets/${graph_period}',
+			'Transfered Packets, Dropped / Retried Packets, and Error Packets for the WLAN device: ' . $Data{'device'}{$thisDevice}->{'name'}
 		);
 
 		foreach ( @{$Data{'device'}{$thisDevice}{'radio'}} ) {
@@ -404,7 +416,8 @@ sub do_config_xfer_by_network {
 		'unifi_xfer_per_network',
 		'Transfer / named network',
 		'--base 1000',
-		'Bytes/${graph_period} rcvd (-) / trans (+)'
+		'Bytes/${graph_period} rcvd (-) / trans (+)',
+		'Bytes sent and received per each named network'
 	);
 
 	foreach my $thisNet ( sort keys %{$Data{'networks'}} ) {
@@ -424,7 +437,8 @@ sub do_config_xfer_by_network {
 			'unifi_xfer_per_network.' . $thisNet,
 			'Transfer / named network : ' . $Data{'networks'}{$thisNet}->{'label'},
 			'--base 1000',
-			'Bytes/${graph_period} rcvd (-) / trans (+)'
+			'Bytes/${graph_period} rcvd (-) / trans (+)',
+			'Bytes sent and received for the network named: ' . $Data{'networks'}{$thisNet}->{'label'}
 		);
 		foreach ( "rxbyte", "txbyte" ) {
 			print $_ , ".label Bytes\n";
@@ -447,7 +461,8 @@ sub do_config_xfer_by_port {
 			'unifi_xfer_per_port_' .  $thisDevice,
 			'Transfer / port : ' . $Data{'device'}{$thisDevice}->{'label'},
 			'--base 1000',
-			'Bytes/${graph_period} rcvd (-) / trans (+)'
+			'Bytes/${graph_period} rcvd (-) / trans (+)',
+			'Bytes sent and received per port on the switch named: ' . $Data{'device'}{$thisDevice}->{'label'}
 		);
 		foreach my $thisPort ( @{$Data{'device'}{$thisDevice}{'ports'}} ) {
 			foreach ( "_rxbytes", "_txbytes" ) {
@@ -470,7 +485,8 @@ sub do_config_xfer_by_port {
 				'unifi_xfer_per_port_' .  $thisDevice . "." . $thisPort->{'name'},
 				'Transfer / port : ' . $Data{'device'}{$thisDevice}->{'label'} . " : " . $thisPort->{'label'},
 				'--base 1000',
-				'Bytes/${graph_period} rcvd (-) / trans (+)'
+				'Bytes/${graph_period} rcvd (-) / trans (+)',
+				'Bytes sent and received on port "' . $thisPort->{'label'} . '" of the switch "' . $Data{'device'}{$thisDevice}->{'label'} . '"'
 			);
 			foreach ( "rxbyte", "txbyte" ) {
 				print $_ . ".label Bytes\n";
@@ -492,7 +508,8 @@ sub do_config_xfer_by_uplink {
 		'unifi_xfer_by_uplink',
 		'Transfer on uplink : ' . $Data{'uplink'}{'devName'},
 		'--base 1000',
-		'Bytes/${graph_period} rcvd (-) / trans (+)'
+		'Bytes/${graph_period} rcvd (-) / trans (+)',
+		'Bytes sent and received on the WAN port of the USG, and the speedtest result of the same port'
 	);
 
 	foreach ( "rx", "tx" ) {
@@ -520,7 +537,8 @@ sub do_config_xfer_by_device {
 		'unifi_xfer_per_device',
 		'Transfer / device',
 		'--base 1000',
-		'Bytes/${graph_period} rcvd (-) / trans (+)'
+		'Bytes/${graph_period} rcvd (-) / trans (+)',
+		'Bytes sent and received per unifi device'
 	);
 
 	foreach my $thisDevice ( sort keys %{$Data{'device'}} ) {
@@ -539,7 +557,8 @@ sub do_config_xfer_by_device {
 				'unifi_xfer_per_device.' . $thisDevice,
 				'Transfer / device : ' . $Data{'device'}{$thisDevice}->{'label'},
 				'--base 1000',
-				'Bytes/${graph_period} rcvd (-) / trans (+)'
+				'Bytes/${graph_period} rcvd (-) / trans (+)',
+				'Bytes sent and received on the unifi device named: ' . $Data{'device'}{$thisDevice}->{'label'}
 			);
 			foreach ( "rxbyte", "txbyte" ) {
 				print $_ , ".label Bytes\n";
@@ -560,7 +579,8 @@ sub do_config_uptime {
 		'unifi_device_uptime',
 		'Uptime',
 		'--base 1000 -r --lower-limit 0',
-		'days'
+		'days',
+		'Uptime in days for each unifi device'
 	);
 
 	foreach ( sort keys %{$Data{'device'}} ) {
@@ -576,7 +596,8 @@ sub do_config_cpu {
 		'unifi_device_cpu',
 		'CPU Usage',
 		'--base 1000 -r --lower-limit 0 --upper-limit 100',
-		'%'
+		'%',
+		'CPU usage as a percentage for each unifi device'
 	);
 
 	foreach ( sort keys %{$Data{'device'}} ) {
@@ -592,7 +613,8 @@ sub do_config_load {
 		'unifi_device_load',
 		'Load Average',
 		'-l 0 --base 1000',
-		'load'
+		'load',
+		'Load average for each unifi Access Point or Switch'
 	);
 
 	foreach ( sort keys %{$Data{'device'}} ) {
@@ -609,7 +631,8 @@ sub do_config_mem {
 		'unifi_device_mem',
 		'Memory Usage',
 		'--base 1000 -r --lower-limit 0 --upper-limit 100',
-		'%'
+		'%',
+		'Memory usage as a percentage for each unifi device'
 	);
 
 	foreach ( sort keys %{$Data{'device'}} ) {
@@ -617,6 +640,14 @@ sub do_config_mem {
 	}
 	return 1;
 }
+
+
+
+
+
+
+
+
 
 
 #########################
@@ -822,19 +853,26 @@ sub do_values_uptime {
 
 
 
+
+
+
+
 #########################
 # SUBROUTINES   GENERAL #
 #########################
 
 sub graph_prolouge {
-	# Generate graph prolouges - slightly less copy-pasta.
-	my ( $id, $title, $args, $vlabel ) = (@_);
+	# Generate graph prolouges - slightly less copy-pasta, and less chance for things to go wrong
+	my ( $id, $title, $args, $vlabel, $info ) = (@_);
 
 	print "multigraph $id\n";
 	print 'graph_title ' , $title , ' : ' , $APIconfig{"name"} , "\n";
 	print "graph_args $args\n";
 	print "graph_vlabel $vlabel\n";
 	print "graph_category unifi\n";
+	if ( $info ) {
+		print 'graph_info For the unifi site named "' , $APIconfig{"name"} , "\", $info\n";
+	}
 	return 1;
 }
 
@@ -917,6 +955,13 @@ sub make_data {
 	} # END PROCESSING OF DEVICE DATA
 
 
+	# PROCESS NETWORK TYPE DATA
+
+	# -> UNLESS, type graph is disabled.
+	#
+	# WHY: if the client list is large (huge.  10,000+), this is CPU intensive
+	if ( !$PluginConfig{'enable_clients_type'} ) { return 1; }
+
 	$Data{'types'} = {
 		"wired"  => ["Wired Connection", 1, 0, 0],
 		"wifi"   => ["Wireless Connection", 1, 0, 0],
@@ -942,37 +987,36 @@ sub make_data {
 		push @{$Data{'typesOrder'}}, $_;
 	}
 
-	if ( $PluginConfig{'enable_clients_type'} ) {
-		# For a lot of clients, this is probably CPU intensive, so only do it if needed.
-		foreach my $client ( @{$APIJsonResponse{'sta'}->{'data'}} ) {
-			if ( $client->{"is_wired"} ) {
-				if ( $client->{"is_guest"} ) {
-					$Data{'types'}->{'wired'}[3]++;
-					$Data{'types'}->{'guest'}[3]++;
+	foreach my $client ( @{$APIJsonResponse{'sta'}->{'data'}} ) {
+		if ( $client->{"is_wired"} ) {
+			if ( $client->{"is_guest"} ) {
+				$Data{'types'}->{'wired'}[3]++;
+				$Data{'types'}->{'guest'}[3]++;
+			} else {
+				$Data{'types'}->{'wired'}[2]++;
+				$Data{'types'}->{'user'}[2]++;
+			}
+		} else {
+			if ( $client->{"is_guest"} ) {
+				$Data{'types'}->{make_safe($client->{"essid"})}[3]++;
+				$Data{'types'}->{'wifi'}[3]++;
+				$Data{'types'}->{'guest'}[3]++;
+				if ( $client->{"authorized"} ) {
+					$Data{'types'}->{'authed'}[3]++;
 				} else {
-					$Data{'types'}->{'wired'}[2]++;
-					$Data{'types'}->{'user'}[2]++;
+					$Data{'types'}->{'unauth'}[3]++;
 				}
 			} else {
-				if ( $client->{"is_guest"} ) {
-					$Data{'types'}->{make_safe($client->{"essid"})}[3]++;
-					$Data{'types'}->{'wifi'}[3]++;
-					$Data{'types'}->{'guest'}[3]++;
-					if ( $client->{"authorized"} ) {
-						$Data{'types'}->{'authed'}[3]++;
-					} else {
-						$Data{'types'}->{'unauth'}[3]++;
-					}
-				} else {
-					$Data{'types'}->{make_safe($client->{"essid"})}[2]++;
-					$Data{'types'}->{'wifi'}[2]++;
-					$Data{'types'}->{'user'}[2]++;
-				}
+				$Data{'types'}->{make_safe($client->{"essid"})}[2]++;
+				$Data{'types'}->{'wifi'}[2]++;
+				$Data{'types'}->{'user'}[2]++;
 			}
 		}
 	}
+
 	return 1;
 }
+
 
 sub fetch_data {
 	# Set up curl, and login to API
