@@ -96,6 +96,13 @@ By default, everything is enabled.  Set to "no" to disable
     env.enable_detail_xfer_radio yes
     # Show detailed graphs for each radio
 
+    env.use_extended_device_names yes
+    # Enable the use of extended device names -
+    # you can turn this off to shorted RRD file names IF and ONLY IF your devices and networks are
+    # uniquely named (Neither is enforced by the unifi controller software)
+    #
+    # [a/n: Added so I didn't need to rename all my RRD's when I discovered this could be an issue]
+
 
 =head1 CAPABILITIES
 
@@ -134,7 +141,7 @@ Output Bytes     |  64,262  | 431,434
 Output Lines     |   1,761  |  14,586
 Output Graphs    |      77  |     530
 
-So, just note that the growth in the amount of graphed date can be extream.
+So, just note that the growth in the amount of graphed date can be extreme.
 
 
 =head1 LICENSE
@@ -154,22 +161,17 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see L<http://www.gnu.org/licenses/>.
 
-=head1 VERSION
-
-Most recent version available from 
-
-L<https://github.com/jtsage/unifi-munin-plugins>
-
-=head1 MAGICK MARKERS
+=head1 MAGIC MARKERS
 
   #%# family=manual
-  #%# capabilities=autoconf
+  #%# capabilities=
 
 =cut
 
 use warnings;
 use strict;
 use utf8;
+use Munin::Plugin;
 
 # Check dependancies
 my @errorCode;
@@ -182,22 +184,13 @@ if (! eval {require WWW::Curl::Easy; 1;} ) {
 	push @errorCode, "WWW::Curl::Easy module not found";
 }
 
-# Provide autoconf info
-if ( defined($ARGV[0]) && $ARGV[0] eq "autoconf" ) {
-	push @errorCode, "Requires configuration";
-	print "no (", join(", " => @errorCode), ")\n";
-	exit(0);
-}
-
 # Fail on not found dependancies
 if ( @errorCode != 0 ) {
 	die "FATAL:$me: Perl dependancies not installed (", join(", " => @errorCode), ")\n";
 }
 
 # Multigraph cabability is required for this plugin
-if ( ! $ENV{'MUNIN_CAP_MULTIGRAPH'} ) {
-	die "FATAL:$me: Multigraph capability required\n";
-}
+need_multigraph();
 
 # Somewhat (in)sane defaults for host, pass, etc
 my %APIconfig = (
@@ -230,8 +223,8 @@ my %PluginConfig = (
 	'enable_detail_clients_type'    => env_default_bool_true('enable_detail_clients_network'),
 	'hide_empty_xfer_port'          => env_default_bool_true('hide_empty_xfer_port'),
 	'show_authorized_clients_type'  => env_default_bool_true('show_authorized_clients_type'),
+	'use_extended_device_names'     => env_default_bool_true('use_extended_device_names'),
 );
-
 
 # Set up needed API endpoints
 my %APIPoint = (
@@ -319,7 +312,7 @@ sub do_config_clients_by_type {
 	# Provide client count by type - CONFIG
 	if ( !$PluginConfig{'enable_clients_type'} ) { return 0; }
 
-	graph_prolouge(
+	graph_prologue(
 		'unifi_clients_per_network',
 		'Clients Connected / Network',
 		'-l 0 --base 1000',
@@ -335,7 +328,7 @@ sub do_config_clients_by_type {
 
 	foreach ( @{$Data{'typesOrder'}} ) {
 		if ( $Data{'types'}{$_}[1] == 1 ) {
-			graph_prolouge(
+			graph_prologue(
 				'unifi_clients_per_network.' . $_,
 				'Clients Connected : ' . $Data{'types'}{$_}[0],
 				'-l 0 --base 1000',
@@ -353,7 +346,7 @@ sub do_config_clients_by_device {
 	# Provide client count by device - CONFIG
 	if ( !$PluginConfig{'enable_clients_device'} ) { return 0; }
 
-	graph_prolouge(
+	graph_prologue(
 		'unifi_clients_per_device',
 		'Clients Connected / Device',
 		'-l 0 --base 1000',
@@ -368,7 +361,7 @@ sub do_config_clients_by_device {
 	if ( ! $PluginConfig{'enable_detail_clients_device'} ) { return 1; }
 
 	foreach ( sort keys %{$Data{'device'}} ) {
-		graph_prolouge(
+		graph_prologue(
 			'unifi_clients_per_device.' . $_,
 			'Clients / Device : ' . $Data{'device'}{$_}->{'label'},
 			'-l 0 --base 1000',
@@ -385,7 +378,7 @@ sub do_config_xfer_by_radio {
 	# Provide transfer for radios - CONFIG
 	if ( !$PluginConfig{'enable_xfer_radio'} ) { return 0; }
 
-	graph_prolouge(
+	graph_prologue(
 		'unifi_xfer_per_radio',
 		'Transfer / radio',
 		'--base 1000',
@@ -408,7 +401,7 @@ sub do_config_xfer_by_radio {
 	foreach my $thisDevice ( sort keys %{$Data{'device'}} ) {
 		if ( $Data{'device'}{$thisDevice}->{'type'} ne "uap" ) { next; }
 
-		graph_prolouge(
+		graph_prologue(
 			'unifi_xfer_per_radio.' .  $thisDevice,
 			'Transfer / radio : ' . $Data{'device'}{$thisDevice}->{'name'},
 			'--base 1000',
@@ -435,7 +428,7 @@ sub do_config_xfer_by_network {
 	# Provide transfer for named networks - CONFIG
 	if ( !$PluginConfig{'enable_xfer_network'} ) { return 0; }
 
-	graph_prolouge(
+	graph_prologue(
 		'unifi_xfer_per_network',
 		'Transfer / named network',
 		'--base 1000',
@@ -456,7 +449,7 @@ sub do_config_xfer_by_network {
 	if ( ! $PluginConfig{'enable_detail_xfer_network'} ) { return 1; }
 
 	foreach my $thisNet ( sort keys %{$Data{'networks'}} ) {
-		graph_prolouge(
+		graph_prologue(
 			'unifi_xfer_per_network.' . $thisNet,
 			'Transfer / named network : ' . $Data{'networks'}{$thisNet}->{'label'},
 			'--base 1000',
@@ -480,7 +473,7 @@ sub do_config_xfer_by_port {
 
 	foreach my $thisDevice ( sort keys %{$Data{'device'}} ) {
 		if ( $Data{'device'}{$thisDevice}->{'type'} ne "usw" ) { next; }
-		graph_prolouge(
+		graph_prologue(
 			'unifi_xfer_per_port_' .  $thisDevice,
 			'Transfer / port : ' . $Data{'device'}{$thisDevice}->{'label'},
 			'--base 1000',
@@ -504,7 +497,7 @@ sub do_config_xfer_by_port {
 	foreach my $thisDevice ( sort keys %{$Data{'device'}} ) {
 		if ( $Data{'device'}{$thisDevice}->{'type'} ne "usw" ) { next; }
 		foreach my $thisPort ( @{$Data{'device'}{$thisDevice}{'ports'}} ) {
-			graph_prolouge(
+			graph_prologue(
 				'unifi_xfer_per_port_' .  $thisDevice . "." . $thisPort->{'name'},
 				'Transfer / port : ' . $Data{'device'}{$thisDevice}->{'label'} . " : " . $thisPort->{'label'},
 				'--base 1000',
@@ -527,7 +520,7 @@ sub do_config_xfer_by_uplink {
 	# Provide transfer for unifi uplink - CONFIG
 	if ( !$PluginConfig{'enable_xfer_device'} ) { return 0; }
 
-	graph_prolouge(
+	graph_prologue(
 		'unifi_xfer_by_uplink',
 		'Transfer on uplink : ' . $Data{'uplink'}{'devName'},
 		'--base 1000',
@@ -556,7 +549,7 @@ sub do_config_xfer_by_device {
 	# Provide transfer for each unifi device - CONFIG
 	if ( !$PluginConfig{'enable_xfer_device'} ) { return 0; }
 
-	graph_prolouge(
+	graph_prologue(
 		'unifi_xfer_per_device',
 		'Transfer / device',
 		'--base 1000',
@@ -576,7 +569,7 @@ sub do_config_xfer_by_device {
 
 	if ( $PluginConfig{'enable_detail_xfer_device'} ) {
 		foreach my $thisDevice ( sort keys %{$Data{'device'}} ) {
-			graph_prolouge(
+			graph_prologue(
 				'unifi_xfer_per_device.' . $thisDevice,
 				'Transfer / device : ' . $Data{'device'}{$thisDevice}->{'label'},
 				'--base 1000',
@@ -598,7 +591,7 @@ sub do_config_xfer_by_device {
 sub do_config_uptime {
 	# Provide device uptime for each unifi device - CONFIG
 	if ( !$PluginConfig{'enable_device_uptime'} ) { return 0; }
-	graph_prolouge(
+	graph_prologue(
 		'unifi_device_uptime',
 		'Uptime',
 		'--base 1000 -r --lower-limit 0',
@@ -615,7 +608,7 @@ sub do_config_uptime {
 sub do_config_cpu {
 	# Provide device CPU usage for each unifi device - CONFIG
 	if ( !$PluginConfig{'enable_device_cpu'} ) { return 0; }
-	graph_prolouge(
+	graph_prologue(
 		'unifi_device_cpu',
 		'CPU Usage',
 		'--base 1000 -r --lower-limit 0 --upper-limit 100',
@@ -632,7 +625,7 @@ sub do_config_cpu {
 sub do_config_load {
 	# Provide device load average for each unifi device - CONFIG
 	if ( !$PluginConfig{'enable_device_load'} ) { return 0; }
-	graph_prolouge(
+	graph_prologue(
 		'unifi_device_load',
 		'Load Average',
 		'-l 0 --base 1000',
@@ -650,7 +643,7 @@ sub do_config_load {
 sub do_config_mem {
 	# Provice device memory usage for each unifi device - CONFIG
 	if ( !$PluginConfig{'enable_device_mem'} ) { return 0; }
-	graph_prolouge(
+	graph_prologue(
 		'unifi_device_mem',
 		'Memory Usage',
 		'--base 1000 -r --lower-limit 0 --upper-limit 100',
@@ -884,7 +877,7 @@ sub do_values_uptime {
 # SUBROUTINES   GENERAL #
 #########################
 
-sub graph_prolouge {
+sub graph_prologue {
 	# Generate graph prolouges - slightly less copy-pasta, and less chance for things to go wrong
 	my ( $id, $title, $args, $vlabel, $info ) = (@_);
 
@@ -903,7 +896,7 @@ sub graph_prolouge {
 sub make_data {
 	foreach my $thisDevice ( @{$APIJsonResponse{'device'}->{'data'}} ) {
 		# Grab everything we care to know about each device.
-		$Data{'device'}{ make_safe($thisDevice->{'name'}) } = {
+		$Data{'device'}{ make_safe($thisDevice->{'name'}, $thisDevice->{'serial'}) } = {
 			'label'   => $thisDevice->{'name'},
 			'users'   => ($thisDevice->{'user-num_sta'} || 0),
 			'guests'  => ($thisDevice->{'guest-num_sta'} || 0),
@@ -920,7 +913,7 @@ sub make_data {
 
 		if ( $thisDevice->{'type'} eq 'ugw' ) { # Handle firewall specially, record uplink and networks
 			foreach my $thisNet ( @{$thisDevice->{'network_table'}} ) {
-				$Data{'networks'}{ make_safe($thisNet->{'name'}) } = {
+				$Data{'networks'}{ make_safe($thisNet->{'name'}, $thisNet->{'_id'} ) } = {
 					'label' => $thisNet->{'name'},
 					'tx'    => $thisNet->{'tx_bytes'},
 					'rx'    => $thisNet->{'rx_bytes'}
@@ -952,14 +945,14 @@ sub make_data {
 					};
 				}
 			}
-			$Data{'device'}{ make_safe($thisDevice->{'name'}) }{'ports'} = \@port_list;
+			$Data{'device'}{ make_safe($thisDevice->{'name'}, $thisDevice->{'serial'}) }{'ports'} = \@port_list;
 		}
 
 		if ( $thisDevice->{'type'} eq 'uap' ) { # Handle APS specially - record radio stats
 			my @theseRadios;
 
 			foreach my $thisRadio ( @{$thisDevice->{'radio_table_stats'}} ) {
-				my $name  = make_safe( $thisRadio->{'name'} );
+				my $name  = make_safe( $thisRadio->{'name'}, "" );
 				my $label = ( $thisRadio->{'channel'} < 12 ) ? '2.4Ghz' : '5Ghz';
 
 				$_ = $thisDevice->{'stat'};
@@ -973,7 +966,7 @@ sub make_data {
 					'type'  => $label
 				};
 			}
-			$Data{'device'}{ make_safe($thisDevice->{'name'}) }{'radio'} = \@theseRadios;
+			$Data{'device'}{ make_safe($thisDevice->{'name'}, $thisDevice->{'serial'}) }{'radio'} = \@theseRadios;
 		}
 	} # END PROCESSING OF DEVICE DATA
 
@@ -1001,9 +994,9 @@ sub make_data {
 
 	my @wlans;
 
-	foreach my $thisDevice ( @{$APIJsonResponse{'wlan'}->{'data'}} ) {
-		$Data{'types'}{ make_safe($thisDevice->{'name'}) } = [ $thisDevice->{'name'}, 1, 0, 0 ];
-		push @wlans, make_safe($thisDevice->{'name'});
+	foreach my $thisNet ( @{$APIJsonResponse{'wlan'}->{'data'}} ) {
+		$Data{'types'}{ make_safe($thisNet->{'name'}, "") } = [ $thisNet->{'name'}, 1, 0, 0 ];
+		push @wlans, make_safe($thisNet->{'name'}, "");
 	}
 
 	foreach ( sort @wlans ) {
@@ -1021,7 +1014,7 @@ sub make_data {
 			}
 		} else {
 			if ( $client->{"is_guest"} ) {
-				$Data{'types'}->{make_safe($client->{"essid"})}[3]++;
+				$Data{'types'}->{make_safe($client->{"essid"}, "")}[3]++;
 				$Data{'types'}->{'wifi'}[3]++;
 				$Data{'types'}->{'guest'}[3]++;
 				if ( $client->{"authorized"} ) {
@@ -1030,7 +1023,7 @@ sub make_data {
 					$Data{'types'}->{'unauth'}[3]++;
 				}
 			} else {
-				$Data{'types'}->{make_safe($client->{"essid"})}[2]++;
+				$Data{'types'}->{make_safe($client->{"essid"}, "")}[2]++;
 				$Data{'types'}->{'wifi'}[2]++;
 				$Data{'types'}->{'user'}[2]++;
 			}
@@ -1116,7 +1109,14 @@ sub fetch_data {
 }
 
 # Make field names safe, and lowercase. Sourced originally from Munin::Plugin
-sub make_safe { $_ = lc($_[0]); s/^[^a-z_]+/_/; s/\W/_/g; return ( $_ eq "root" ? "__root" : $_ ); }
+sub make_safe { 
+	my ( $name, $extraName ) = ( @_ );
+	if ( $PluginConfig{'use_extended_device_names'} && $extraName ne "" ) {
+		return clean_fieldname(lc($name) . "_" . $extraName);
+	} else {
+		return lc(clean_fieldname($name)); 
+	}
+}
 
 # Get a default from an enviromental variable - return text
 #
