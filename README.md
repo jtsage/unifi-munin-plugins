@@ -9,6 +9,7 @@ A munin plugin for UniFi gear - All written in 100% perl
 
 ## Available Graphs:
 
+All graphs are created by default, see below on how to toggle sections of this plugin off.  The following are the graphs provided:
 
 ### unifi\_clients\_by\_device _(multigraph)_
  
@@ -25,7 +26,7 @@ A munin plugin for UniFi gear - All written in 100% perl
 
  
 
-### unifi\_device\_cpu _(provided by unifi_device_stats multigraph)_
+### unifi\_device\_cpu 
  
  Display CPU usage on each unifi device
  
@@ -33,7 +34,7 @@ A munin plugin for UniFi gear - All written in 100% perl
 
 
 
-### unifi\_device\_load _(provided by unifi_device_stats multigraph)_
+### unifi\_device\_load 
 
  Display the load average on each unifi device
  
@@ -41,7 +42,7 @@ A munin plugin for UniFi gear - All written in 100% perl
 
 
 
-### unifi\_device\_mem _(provided by unifi_device_stats multigraph)_
+### unifi\_device\_mem 
  
  Display the memory usage on each unifi device
 
@@ -49,7 +50,7 @@ A munin plugin for UniFi gear - All written in 100% perl
 
 
 
-### unifi\_device\_uptime _(provided by unifi_device_stats multigraph)_
+### unifi\_device\_uptime 
  
  Display the uptime of each unifi device, in days
 
@@ -213,7 +214,7 @@ A bit of a case study:
 | Output Lines     |   1,761  |  14,586    |
 | Output Graphs    |      77  |     530    |
 
-So, just note that the growth in the amount of graphed date can be extream.
+So, just note that the growth in the amount of graphed data can be extream.
 
 (That said, on my configuration, and with a locally cached source, the demo site
 can be parsed in a around 0.15 second - I have not graphed all 530 - I'm guessing

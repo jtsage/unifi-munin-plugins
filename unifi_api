@@ -5,7 +5,8 @@
 
 =head1 NAME
 
-unifi_api - Munin plugin to display device and network information from the Ubiquiti unifi API
+unifi_api - Munin plugin to display device and network information from the 
+            Ubiquiti unifi API
 
 =head1 APPLICABLE SYSTEMS
 
@@ -41,10 +42,12 @@ You will need to supply your API login details:
     # A pretty name for the unifi site - used in graph titles.
 
     env.site site_string 
-    # default is "default" - found when you connect to the web interface - it's the term
-    # in the URL - /manage/site/site_string/dashboard
+    # default is "default" - found when you connect to the web interface
+    # it's the term in the URL - /manage/site/site_string/dashboard
 
-There are a number of possible options to turn off individual graphs.  By default, everything is enabled.  Set to "no" to disable
+There are a number of possible options to turn off individual graphs.
+
+By default, everything is enabled.  Set to "no" to disable
 
     env.enable_device_cpu yes
     # Show device CPU utilization
@@ -68,7 +71,8 @@ There are a number of possible options to turn off individual graphs.  By defaul
     env.enable_detail_clients_type yes
     # Show detailed graphs for each client type
     env.show_authorized_clients_type yes
-    # Show unauthorized / authorized client list - if you are not using the guest portal, this is useless
+    # Show unauthorized / authorized client list
+    # if you are not using the guest portal, this is useless
 
     env.enable_xfer_port yes
     # Show transfer statistics on switch ports
@@ -97,7 +101,7 @@ There are a number of possible options to turn off individual graphs.  By defaul
 
 This plugin requires multigraph.
 
-This plugin supports DIRTYCONFIG : L<http://guide.munin-monitoring.org/en/latest/plugin/protocol-dirtyconfig.html>
+This plugin supports L<DIRTYCONFIG|http://guide.munin-monitoring.org/en/latest/plugin/protocol-dirtyconfig.html>
 
 =head1 DEPENDENCIES
 
