@@ -96,12 +96,16 @@ By default, everything is enabled.  Set to "no" to disable
     env.enable_detail_xfer_radio yes
     # Show detailed graphs for each radio
 
-    env.use_extended_device_names yes
-    # Enable the use of extended device names -
-    # you can turn this off to shorted RRD file names IF and ONLY IF your devices and networks are
-    # uniquely named (Neither is enforced by the unifi controller software)
+    env.use_well_know_categories yes
+    # Use standard munin well know categories - 
+    #  system: cpu, mem, load, & uptime
+    #  network: clients, transfer statistics.
     #
-    # [a/n: Added so I didn't need to rename all my RRD's when I discovered this could be an issue]
+    # Setting this to "no" will report all graphs under the unifi category - which can be
+    # helpful if you are running this on another host.  Keep in mind that "virtual" munin
+    # hosts are possible - set the host_name property and define that server in the munin
+    # master configuration. L<host_name|http://guide.munin-monitoring.org/en/latest/plugin/use.html>
+
 
 
 =head1 CAPABILITIES
@@ -223,7 +227,7 @@ my %PluginConfig = (
 	'enable_detail_clients_type'    => env_default_bool_true('enable_detail_clients_network'),
 	'hide_empty_xfer_port'          => env_default_bool_true('hide_empty_xfer_port'),
 	'show_authorized_clients_type'  => env_default_bool_true('show_authorized_clients_type'),
-	'use_extended_device_names'     => env_default_bool_true('use_extended_device_names'),
+	'use_well_know_categories'      => env_default_bool_true('show_authorized_clients_type')
 );
 
 # Set up needed API endpoints
@@ -317,6 +321,7 @@ sub do_config_clients_by_type {
 		'Clients Connected / Network',
 		'-l 0 --base 1000',
 		'clients',
+		'network',
 		'Clients connected per type - manually summing these numbers may be meaningful, as clients are often of multiple types'
 	);
 
@@ -333,6 +338,7 @@ sub do_config_clients_by_type {
 				'Clients Connected : ' . $Data{'types'}{$_}[0],
 				'-l 0 --base 1000',
 				'clients',
+				'network',
 				'Clients connected via that are of type: ' . $Data{'types'}{$_}[0]
 			);
 			print "users.label Users\n";
@@ -351,6 +357,7 @@ sub do_config_clients_by_device {
 		'Clients Connected / Device',
 		'-l 0 --base 1000',
 		'clients',
+		'network',
 		'Clients connected to each unifi device'
 	);
 
@@ -366,6 +373,7 @@ sub do_config_clients_by_device {
 			'Clients / Device : ' . $Data{'device'}{$_}->{'label'},
 			'-l 0 --base 1000',
 			'clients',
+			'network',
 			'Clients connected to the ' . $Data{'device'}{$_}->{'label'} . " unifi device"
 		);
 		print "users.label Users\n";
@@ -383,6 +391,7 @@ sub do_config_xfer_by_radio {
 		'Transfer / radio',
 		'--base 1000',
 		'Packets/${graph_period}',
+		'network',
 		'Number of packets transfered per individual radio band'
 	);
 
@@ -406,6 +415,7 @@ sub do_config_xfer_by_radio {
 			'Transfer / radio : ' . $Data{'device'}{$thisDevice}->{'name'},
 			'--base 1000',
 			'Packets/${graph_period}',
+			'network',
 			'Transfered Packets, Dropped / Retried Packets, and Error Packets for the WLAN device: ' . $Data{'device'}{$thisDevice}->{'name'}
 		);
 
@@ -433,6 +443,7 @@ sub do_config_xfer_by_network {
 		'Transfer / named network',
 		'--base 1000',
 		'Bytes/${graph_period} rcvd (-) / trans (+)',
+		'network',
 		'Bytes sent and received per each named network'
 	);
 
@@ -454,6 +465,7 @@ sub do_config_xfer_by_network {
 			'Transfer / named network : ' . $Data{'networks'}{$thisNet}->{'label'},
 			'--base 1000',
 			'Bytes/${graph_period} rcvd (-) / trans (+)',
+			'network',
 			'Bytes sent and received for the network named: ' . $Data{'networks'}{$thisNet}->{'label'}
 		);
 		foreach ( "rxbyte", "txbyte" ) {
@@ -478,6 +490,7 @@ sub do_config_xfer_by_port {
 			'Transfer / port : ' . $Data{'device'}{$thisDevice}->{'label'},
 			'--base 1000',
 			'Bytes/${graph_period} rcvd (-) / trans (+)',
+			'network',
 			'Bytes sent and received per port on the switch named: ' . $Data{'device'}{$thisDevice}->{'label'}
 		);
 		foreach my $thisPort ( @{$Data{'device'}{$thisDevice}{'ports'}} ) {
@@ -502,6 +515,7 @@ sub do_config_xfer_by_port {
 				'Transfer / port : ' . $Data{'device'}{$thisDevice}->{'label'} . " : " . $thisPort->{'label'},
 				'--base 1000',
 				'Bytes/${graph_period} rcvd (-) / trans (+)',
+				'network',
 				'Bytes sent and received on port "' . $thisPort->{'label'} . '" of the switch "' . $Data{'device'}{$thisDevice}->{'label'} . '"'
 			);
 			foreach ( "rxbyte", "txbyte" ) {
@@ -525,6 +539,7 @@ sub do_config_xfer_by_uplink {
 		'Transfer on uplink : ' . $Data{'uplink'}{'devName'},
 		'--base 1000',
 		'Bytes/${graph_period} rcvd (-) / trans (+)',
+		'network',
 		'Bytes sent and received on the WAN port of the USG, and the speedtest result of the same port'
 	);
 
@@ -554,6 +569,7 @@ sub do_config_xfer_by_device {
 		'Transfer / device',
 		'--base 1000',
 		'Bytes/${graph_period} rcvd (-) / trans (+)',
+		'network',
 		'Bytes sent and received per unifi device'
 	);
 
@@ -574,6 +590,7 @@ sub do_config_xfer_by_device {
 				'Transfer / device : ' . $Data{'device'}{$thisDevice}->{'label'},
 				'--base 1000',
 				'Bytes/${graph_period} rcvd (-) / trans (+)',
+				'network',
 				'Bytes sent and received on the unifi device named: ' . $Data{'device'}{$thisDevice}->{'label'}
 			);
 			foreach ( "rxbyte", "txbyte" ) {
@@ -596,6 +613,7 @@ sub do_config_uptime {
 		'Uptime',
 		'--base 1000 -r --lower-limit 0',
 		'days',
+		'system',
 		'Uptime in days for each unifi device'
 	);
 
@@ -613,6 +631,7 @@ sub do_config_cpu {
 		'CPU Usage',
 		'--base 1000 -r --lower-limit 0 --upper-limit 100',
 		'%',
+		'system',
 		'CPU usage as a percentage for each unifi device'
 	);
 
@@ -630,6 +649,7 @@ sub do_config_load {
 		'Load Average',
 		'-l 0 --base 1000',
 		'load',
+		'system',
 		'Load average for each unifi Access Point or Switch'
 	);
 
@@ -648,6 +668,7 @@ sub do_config_mem {
 		'Memory Usage',
 		'--base 1000 -r --lower-limit 0 --upper-limit 100',
 		'%',
+		'system',
 		'Memory usage as a percentage for each unifi device'
 	);
 
@@ -878,14 +899,18 @@ sub do_values_uptime {
 #########################
 
 sub graph_prologue {
-	# Generate graph prolouges - slightly less copy-pasta, and less chance for things to go wrong
-	my ( $id, $title, $args, $vlabel, $info ) = (@_);
+	# Generate graph prologues - slightly less copy-pasta, and less chance for things to go wrong
+	my ( $id, $title, $args, $vlabel, $category, $info ) = (@_);
 
 	print "multigraph $id\n";
 	print 'graph_title ' , $title , ' : ' , $APIconfig{"name"} , "\n";
 	print "graph_args $args\n";
 	print "graph_vlabel $vlabel\n";
-	print "graph_category unifi\n";
+	if ( $PluginConfig{'use_well_know_categories'} && $info ) {
+		print "graph_category $category\n";
+	} else {
+		print "graph_category unifi\n";
+	}
 	if ( $info ) {
 		print 'graph_info For the unifi site named "' , $APIconfig{"name"} , "\", $info\n";
 	}
@@ -1109,9 +1134,12 @@ sub fetch_data {
 }
 
 # Make field names safe, and lowercase. Sourced originally from Munin::Plugin
+# 
+# Typically, $extraName should be the MAC address of the unique ID identifier as the unifi
+# controller software does not enforce that device names or network names are unique.
 sub make_safe { 
 	my ( $name, $extraName ) = ( @_ );
-	if ( $PluginConfig{'use_extended_device_names'} && $extraName ne "" ) {
+	if ( $extraName ne "" ) {
 		return clean_fieldname(lc($name) . "_" . $extraName);
 	} else {
 		return lc(clean_fieldname($name)); 
