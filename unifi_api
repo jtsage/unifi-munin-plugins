@@ -18,103 +18,149 @@ WebRTC is not supported at this time
 
 =head1 CONFIGURATION
 
-This script uses the multigraph functionality to generate many graphs.
+This script uses the multigraph functionality to generate many graphs.  As such, there
+are a significant amount of available configuration options
+
+=head2 API Details
 
 You will need to supply your API login details:
 
   [unifi_api]
+    # User name to login to unifi controller API.  Default is "ubnt".  Ideally, this should
+    # point to a read-only account.
     env.user Controller_Username
-    # default is ubnt
 
+    # Password to login to unifi controller API. Default is "ubnt"
     env.pass Controller_Password
-    # default is ubnt
 
+    # URL of the API, with port if needed.  No trailing slash.
+    # Default is https://localhost:8443
     env.api_url https://unifi.fqdn.com:8443
-    # default is https://localhost:8443
 
-    env.ssl_verify_host no 
-    # Check That SSL host is valid, default is yes
+    # Verify SSL certificate name against host.
+    # Note: if using a default cloudkey certificate, this will fail unless you manually add it
+    # to the local keystore.
+    # Default is "yes"
+    env.ssl_verify_host no
 
+    # Verify Peer's SSL vertiicate.
+    # Note: if using a default cloudkey certificate, this will fail
+    # Default is "yes"
     env.ssl_verify_peer no 
-    # Check That SSL peer is valid, default is yes
 
+    # The human readable name of the unifi site - used for graph titles
     env.name Site Name
-    # A pretty name for the unifi site - used in graph titles.
 
-    env.site site_string 
+    # "Site" string - the internal unifi API site identifier. 
     # default is "default" - found when you connect to the web interface
     # it's the term in the URL - /manage/site/site_string/dashboard
+    env.site site_string 
 
-There are a number of possible options to turn off individual graphs.
 
-By default, everything is enabled.  Set to "no" to disable
+=head2 Graph Categories / Host Managment
 
-    env.enable_device_cpu yes
-    # Show device CPU utilization
+Sometimes, you need more control over where the unifi graphs appear.
 
-    env.enable_device_mem yes
-    # Show device memory usage
-
-    env.enable_device_load yes
-    # Show device load average (switches and APs only)
-
-    env.enable_device_uptime yes
-    # Show device uptime
-
-    env.enable_clients_device yes
-    # Show number of clients connected to each device
-    env.enable_detail_clients_device yes
-    # Show detailed graphs for each device
-
-    env.enable_clients_type yes
-    # Show number of clients connected to each network type
-    env.enable_detail_clients_type yes
-    # Show detailed graphs for each client type
-    env.show_authorized_clients_type yes
-    # Show unauthorized / authorized client list
-    # if you are not using the guest portal, this is useless
-
-    env.enable_xfer_port yes
-    # Show transfer statistics on switch ports
-    env.enable_detail_xfer_port yes
-    # Show detailed graphs per switch port
-    env.hide_empty_xfer_port yes
-    # Hide ports that have no link
-
-    env.enable_xfer_device yes
-    # Show transfer statistics per device
-    env.enable_detail_xfer_device yes
-    # Show detailed graphs for each device
-
-    env.enable_xfer_network yes
-    # Show transfer statistics per named network
-    env.enable_detail_xfer_network yes
-    # Show detailed graphs for each named network
-
-    env.enable_xfer_radio yes
-    # Show transfer statistics per radio
-    env.enable_detail_xfer_radio yes
-    # Show detailed graphs for each radio
-
-    env.use_well_know_categories yes
-    # Use standard munin well know categories - 
+    env.force_category 0
+    # By default, Use standard munin well know categories - 
     #  system: cpu, mem, load, & uptime
     #  network: clients, transfer statistics.
     #
-    # Setting this to "no" will report all graphs under the unifi category - which can be
-    # helpful if you are running this on another host.  Keep in mind that "virtual" munin
-    # hosts are possible - set the host_name property and define that server in the munin
-    # master configuration. L<host_name|http://guide.munin-monitoring.org/en/latest/plugin/use.html>
 
+To use this feature, set "force_category" to a text string (i.e. "unifi").
+
+This is very helpful if your graphs are going to appear inside another host - for instance
+if your munin graphs for that host are monitoring the host the controller is running on, and
+the unifi API instance.
+
+Sometimes however, you want to monitor either an offsite API, or a cloudkey which, at least by
+default, does not run munin-node.  In that case, you can actually create a "virtual" munin host to
+display only these graphs (or any combination you like).  This is documented in the main munin docs, 
+but in a nutshell:
+
+In your munin-node plugin configuration: (Something like: /etc/munin/plugin-conf.d/munin-node)
+
+  [unifi_api]
+    host_name hostname.whatever.youlike
+    env.force_category unifi
+
+And, in your munin master configuration: (Something like: /etc/munin/munin.conf)
+
+  [hostname.whatever.youlike]
+    address ip.of.munin.node
+
+Make sure you do *not* set "use_node_name" on this new host.  It may be nessesary to define "host_name"
+in your munin-node configuration as well, if you have not already (Likely, on a multi-homed host, this 
+has been done to keep munin-node from advertising itself as localhost)
+
+More information:
+
+ * L<host_name|http://guide.munin-monitoring.org/en/latest/plugin/use.html>
+
+
+=head2 Toggling of graphs / Individual options
+
+You can turn off individual graphs.  A few graphs have extra configuration
+options.
+
+By default, everything is enabled.  Set to "no" to disable
+
+  [unifi_api]
+    # Show device CPU utilization
+    env.enable_device_cpu yes
+
+    # Show device memory usage
+    env.enable_device_mem yes
+
+    # Show device load average (switches and APs only)
+    env.enable_device_load yes
+
+    # Show device uptime
+    env.enable_device_uptime yes
+
+    # Show number of clients connected to each device
+    env.enable_clients_device yes
+    # Show detailed graphs for each device (per device graphs)
+    env.enable_detail_clients_device yes
+
+    # Show number of clients connected to each network type
+    env.enable_clients_type yes
+    # Show detailed graphs for each client type (per type graphs)
+    env.enable_detail_clients_type yes
+    # Show unauthorized / authorized client list
+    # if you are not using the guest portal, this is useless
+    env.show_authorized_clients_type yes
+
+    # Show transfer statistics on switch ports
+    env.enable_xfer_port yes
+    # Show detailed graphs per switch port
+    env.enable_detail_xfer_port yes
+    # Hide ports that have no link (When set to no, unplugged ports will transfer 0, not be undefined)
+    env.hide_empty_xfer_port yes
+
+    # Show transfer statistics per device
+    env.enable_xfer_device yes
+    # Show detailed graphs for each device
+    env.enable_detail_xfer_device yes
+
+    # Show transfer statistics per named network
+    env.enable_xfer_network yes
+    # Show detailed graphs for each named network
+    env.enable_detail_xfer_network yes
+
+    # Show transfer statistics per radio
+    env.enable_xfer_radio yes
+    # Show detailed graphs for each radio
+    env.enable_detail_xfer_radio yes
 
 
 =head1 CAPABILITIES
 
-This plugin requires multigraph.
-
 This plugin supports L<DIRTYCONFIG|http://guide.munin-monitoring.org/en/latest/plugin/protocol-dirtyconfig.html>
 
 =head1 DEPENDENCIES
+
+This plugin requires munin-multiugraph.
 
 =over
 
@@ -227,7 +273,7 @@ my %PluginConfig = (
 	'enable_detail_clients_type'    => env_default_bool_true('enable_detail_clients_network'),
 	'hide_empty_xfer_port'          => env_default_bool_true('hide_empty_xfer_port'),
 	'show_authorized_clients_type'  => env_default_bool_true('show_authorized_clients_type'),
-	'use_well_know_categories'      => env_default_bool_true('show_authorized_clients_type')
+	'force_category'                => env_default_text('force_category', 0),
 );
 
 # Set up needed API endpoints
@@ -906,10 +952,10 @@ sub graph_prologue {
 	print 'graph_title ' , $title , ' : ' , $APIconfig{"name"} , "\n";
 	print "graph_args $args\n";
 	print "graph_vlabel $vlabel\n";
-	if ( $PluginConfig{'use_well_know_categories'} && $info ) {
-		print "graph_category $category\n";
+	if ( $PluginConfig{'force_category'} ) {
+		print "graph_category ", $PluginConfig{'force_category'}, "\n";
 	} else {
-		print "graph_category unifi\n";
+		print "graph_category $category\n";
 	}
 	if ( $info ) {
 		print 'graph_info For the unifi site named "' , $APIconfig{"name"} , "\", $info\n";
@@ -1133,16 +1179,16 @@ sub fetch_data {
 	}
 }
 
-# Make field names safe, and lowercase. Sourced originally from Munin::Plugin
+# Make field names safe, and lowercase.
 # 
 # Typically, $extraName should be the MAC address of the unique ID identifier as the unifi
 # controller software does not enforce that device names or network names are unique.
-sub make_safe { 
+sub make_safe {
 	my ( $name, $extraName ) = ( @_ );
 	if ( $extraName ne "" ) {
 		return clean_fieldname(lc($name) . "_" . $extraName);
 	} else {
-		return lc(clean_fieldname($name)); 
+		return lc(clean_fieldname($name));
 	}
 }
 
