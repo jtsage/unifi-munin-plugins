@@ -1026,7 +1026,7 @@ sub make_data {
 				my $name  = make_safe( $thisRadio->{'name'}, "" );
 				my $label = ( $thisRadio->{'channel'} < 12 ) ? '2.4Ghz' : '5Ghz';
 
-				$_ = $thisDevice->{'stat'};
+				$_ = $thisDevice->{'stat'}->{'ap'};
 
 				push @theseRadios, {
 					'name'  => $name,
